@@ -1,0 +1,124 @@
+# vt420-term
+
+Run programs made for modern terminals, zellij first, on a DEC VT420.
+
+![zellij on a white phosphor VT420](media/zellij.gif)
+
+A program runs in a pseudo-terminal and believes it talks to xterm; [xterm.js](https://github.com/xtermjs/xterm.js)
+emulates that terminal in memory, and the VT420 only ever receives what vt420-term draws from the emulated screen: DEC
+character sets, the attributes a VT420 has, and controls it implements, at the pace its line allows. Nothing a program
+prints reaches the terminal as it was written. (The GIF is rendered from the bytes vt420-term sent, played through the
+test emulator.)
+
+## Install
+
+```bash
+git clone https://github.com/mrq1911/vt420-term.git ~/.local/share/vt420-term
+~/.local/share/vt420-term/install.sh
+```
+
+`install.sh` installs the dependencies without lifecycle scripts, builds node-pty's native module (a C++ compiler and
+Python are needed), and links `vt420-term`, `zellij-vt420` and `vt420-term-update` into `~/.local/bin`. Node 22.18 or
+later runs the TypeScript directly. `vt420-term-update` pulls and runs the same steps again.
+
+## Use
+
+```bash
+vt420-term                        # your shell
+vt420-term -- htop
+vt420-term --baud 9600 -- vim     # pacing for a serial line whose speed stty cannot read
+zellij-vt420                      # zellij with the VT420 profile
+zellij-vt420 --baud 9600 -- attach main
+```
+
+The terminal options are pi-vt420's: `--columns 80|132`, `--lines 24|36|48`, `--status-line`, `--encoding`,
+`--latin1`/`--dec-mcs`, `--8bit`, `--baud`, `--no-flow-control` and `--log`; `--term` sets the program's `TERM`
+(xterm-256color), and `--meta-key` the key that sends Alt (F14). See `vt420-term --help`.
+
+## Keys
+
+| LK401 | The program sees |
+| --- | --- |
+| F11, F12, F13 | Escape, BS and LF, as in VT100 mode; the LK401 has no Escape key |
+| F14 | Alt with the next key (`--meta-key` changes or disables it); the status line shows **Alt** while it waits |
+| Do | F5, a code the LK401 never sends (its F5 is the local Break key) |
+| PF1-PF4 | F1-F4, which xterm sends with the same codes |
+| Find, Select | Home and End |
+| Cursor keys, keypad | in the modes the program asked for (the keypad stays in application mode on the terminal) |
+| Ctrl-S, Ctrl-Q, Hold Screen | XON/XOFF flow control, which stays on |
+
+After Escape the next key waits 80 ms, so a program cannot read the two as Alt and that key.
+
+## zellij
+
+`zellij-vt420` starts zellij with `zellij/vt420.kdl`: zellij's default keymap without Ctrl s and Ctrl q, which are
+XOFF and XON on a serial line, and with the LK401's keys added.
+
+| Key | Action |
+| --- | --- |
+| PF1, PF2, PF3, PF4, Do | pane, tab, resize, scroll and session mode; the same key leaves it |
+| F6, F7 | focus left and right, across tabs at the edges |
+| F8 | new pane |
+| F9 | show and hide floating panes |
+| F10 | fullscreen the focused pane |
+| Do, q | quit (session mode, then q) |
+| F14, then a key | zellij's Alt bindings, such as Alt n or Alt and the arrows |
+
+It also uses the compact layout (one bar), `simplified_ui` (no Powerline glyphs), and turns off the mouse, startup tips
+and the kitty keyboard protocol. Zellij's title (the session and the focused pane) goes to the VT420's status line.
+Set `ZELLIJ_VT420_CONFIG` to use a profile of your own.
+
+## What reaches the terminal
+
+- **Characters**: DEC Special Graphics, DEC Technical and DEC Supplemental (or ISO Latin-1), with the transliteration
+  of pi-vt420: box drawing maps to line drawing, accents to the supplemental set, the rest to its nearest glyph. Every
+  emulated cell is one VT420 cell, so pane borders stay put; a double-width character keeps its two columns with `?`,
+  and Private Use Area glyphs (Powerline, Nerd Font) become spaces.
+- **Colours**: a VT420 reads `38;5;n` or `38;2;r;g;b` one number at a time, so 5 would switch on blink and 7 reverse.
+  vt420-term judges each colour by how it looks instead: a light or vivid background is reverse video, a vivid
+  foreground is bold, greys and whites stay plain. With zellij's default theme the active tab is inverted, inactive
+  tabs and the bars are plain, and the focused pane's frame is bold. Italic is underlined; dim is normal.
+- **Controls**: cursor movement, erasing, SGR 0, 1, 4, 5, 7 and their resets, scrolling margins, character sets, the
+  status line, rectangle fills; nothing else. OSC, DCS, APC and graphics from the program stop at the emulator, which
+  also answers its queries (DA, cursor position, modes); the window title goes to the status line.
+- **Proof**: the tests run hostile output (raw colour codes, emoji, CJK, OSC titles ended by BEL, DCS and APC strings,
+  random binary) and real zellij sessions through the adapter into a strict VT420 emulator, and check every byte sent
+  against that repertoire.
+
+## How it draws
+
+- **The latest screen, never the history**: frames are composed from the emulated screen, so a program that floods its
+  output costs the line no more than the screen it ends up showing. Zellij's own output for its first five seconds is
+  22 KB; the whole 17-second session in the GIF sent 2.7 KB to the terminal, under 1.5 s of a 19200 baud line.
+- **Pacing**: each frame ends with a DA1 request, and a frame goes out only while at most one other is unanswered, so
+  the VT420 is never more than a frame behind, even with smooth scroll set up. Frames wait for synchronized updates
+  (mode 2026) to finish.
+- **Panes scroll in hardware**: when a rectangle of the screen moved up or down, such as one pane scrolling next to
+  others, the renderer scrolls it inside left and right margins (DECLRMM, DECSLRM) with IND or RI and writes only the
+  new lines. The rectangle is the maximum-sum subrectangle of per-cell gains, and a measured trial decides whether
+  scrolling it costs fewer bytes than rewriting it. A log scrolling next to a full pane costs 55 bytes a line instead of
+  345.
+- **The rest of pi-vt420's renderer**: relative cursor moves, ECH, DCH for text that moved left, DECFRA for long runs.
+
+## Terminals
+
+The probe of pi-vt420 decides what is used. A VT420 or VT5xx gets everything; xterm in VT420 mode too, with UTF-8
+output. A VT320 lacks left and right margins and rectangle operations, so panes are redrawn instead of scrolled; a
+VT220 also lacks DEC Technical and the status line. Modern emulators get UTF-8 output and whatever margins they have.
+
+## Not included
+
+Mouse input, images (sixel and kitty graphics are dropped), colour beyond the four attributes, and screens other than
+80 or 132 columns by 24, 36 or 48 lines.
+
+## Development
+
+```bash
+npm ci --ignore-scripts && npm rebuild node-pty
+npm run check    # biome and tsc
+npm test         # vitest; the zellij test runs when zellij is installed
+```
+
+`src/vt420` started as pi-vt420's terminal layer, character sets and renderer, in
+[mrq1911/pi](https://github.com/mrq1911/pi/tree/vt420/packages/coding-agent/src/experimental/vt420); here the renderer
+also scrolls rectangles, and the terminal layer hands over raw input. MIT licensed.

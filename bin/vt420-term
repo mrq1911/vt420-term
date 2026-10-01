@@ -1,0 +1,5 @@
+#!/usr/bin/env bash
+# vt420-term from this checkout; symlinks into PATH resolve back here
+set -euo pipefail
+ROOT="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)"
+exec node "$ROOT/src/main.ts" "$@"

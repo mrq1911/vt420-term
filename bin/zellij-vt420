@@ -1,0 +1,13 @@
+#!/usr/bin/env bash
+# zellij on a DEC VT420: the VT420 profile inside vt420-term. Options before -- go to vt420-term, the rest to zellij:
+#   zellij-vt420 --baud 9600 -- attach main
+set -euo pipefail
+ROOT="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)"
+adapter=()
+if [[ " $* " == *" -- "* ]]; then
+	while [[ $# -gt 0 && "$1" != "--" ]]; do adapter+=("$1"); shift; done
+	shift
+fi
+# a zellij started from inside another one would otherwise refuse to run
+unset ZELLIJ ZELLIJ_SESSION_NAME ZELLIJ_PANE_ID
+exec "$ROOT/bin/vt420-term" "${adapter[@]}" -- zellij --config "${ZELLIJ_VT420_CONFIG:-$ROOT/zellij/vt420.kdl}" "$@"

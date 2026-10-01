@@ -1,0 +1,26 @@
+{
+	"name": "vt420-term",
+	"version": "0.1.0",
+	"private": true,
+	"description": "Run modern terminal programs, zellij first, on a DEC VT420",
+	"license": "MIT",
+	"type": "module",
+	"engines": {
+		"node": ">=22.18"
+	},
+	"scripts": {
+		"check": "biome check --write --error-on-warnings . && tsc --noEmit",
+		"test": "vitest --run"
+	},
+	"dependencies": {
+		"@xterm/addon-unicode11": "0.9.0",
+		"@xterm/headless": "6.0.0",
+		"node-pty": "1.1.0"
+	},
+	"devDependencies": {
+		"@biomejs/biome": "2.5.15",
+		"@types/node": "26.6.3",
+		"typescript": "7.0.2",
+		"vitest": "4.1.11"
+	}
+}
