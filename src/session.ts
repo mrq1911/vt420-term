@@ -9,6 +9,7 @@
 import { Unicode11Addon } from "@xterm/addon-unicode11";
 import xterm from "@xterm/headless";
 import { KeyTranslator } from "./keys.ts";
+import { activity, SAVER_MINUTES, SAVER_MOVE_MS, type SaverMode, saverFrame, saverPlace } from "./saver.ts";
 import { ScreenMapper } from "./screen.ts";
 import { ATTR_BOLD, BLANK } from "./vt420/cells.ts";
 import { Charset } from "./vt420/charset.ts";
@@ -41,6 +42,10 @@ export interface SessionOptions {
 	frameMs?: number;
 	/** Show the last key the terminal sent, and what the program got for it, on the status line. */
 	showKeys?: boolean;
+	/** Screen saver after a spell without keys; "auto" is "progress" on a DEC terminal and "off" on emulators. */
+	screensaver?: SaverMode | "auto";
+	screensaverMinutes?: number;
+	saverMoveMs?: number;
 }
 
 /** Bytes as a status line can show them: ESC, ^X for other controls. */
@@ -89,6 +94,15 @@ export class Session {
 	private keyIn = "";
 	private keyOut = "";
 	private exited: Promise<number>;
+	private readonly saver: SaverMode;
+	private readonly saverMinutes: number;
+	private readonly saverMoveMs: number;
+	private saverTimer: ReturnType<typeof setTimeout> | undefined;
+	private saverMoveTimer: ReturnType<typeof setInterval> | undefined;
+	/** The screen saver is showing; the next key only wakes the screen. */
+	private saving = false;
+	private saverPlace = { row: 0, col: 0 };
+	private changedAt = Date.now();
 
 	constructor(io: SessionTerminal, child: SessionChild, options: SessionOptions = {}) {
 		this.io = io;
@@ -96,6 +110,10 @@ export class Session {
 		this.frameMs = options.frameMs ?? 16;
 		this.showKeys = options.showKeys ?? false;
 		const caps = io.caps;
+		const saver = options.screensaver ?? "auto";
+		this.saver = saver === "auto" ? (caps.unicode ? "off" : "progress") : saver;
+		this.saverMinutes = options.screensaverMinutes ?? SAVER_MINUTES;
+		this.saverMoveMs = options.saverMoveMs ?? SAVER_MOVE_MS;
 		this.sync = caps.deviceStatus ? "\x1b[5n" : caps.level > 0 ? "\x1b[c" : undefined;
 		this.charset = new Charset({
 			technical: caps.technical,
@@ -125,6 +143,12 @@ export class Session {
 		});
 		this.keys = new KeyTranslator({
 			send: (bytes) => {
+				// the key that wakes the screen does nothing else
+				if (this.saving) {
+					this.wake();
+					return;
+				}
+				this.armSaver();
 				child.write(bytes);
 				if (this.showKeys) {
 					this.keyOut = visible(bytes);
@@ -151,7 +175,12 @@ export class Session {
 				resolve(exitCode);
 			});
 		});
-		child.onData((data) => this.term.write(data, () => this.changed()));
+		child.onData((data) =>
+			this.term.write(data, () => {
+				this.changedAt = Date.now();
+				this.changed();
+			}),
+		);
 		io.onData((chunk) => {
 			// the terminal's answers to the adapter's own requests are not keys
 			if (this.showKeys && !/^\x1b\[(\?[\d;]*c|[03]n)$/.test(chunk.toString("latin1"))) {
@@ -163,6 +192,7 @@ export class Session {
 		});
 		io.onResize(() => this.resize());
 		this.schedule(0);
+		this.armSaver();
 	}
 
 	/** Resolves with the program's exit code. */
@@ -180,6 +210,8 @@ export class Session {
 		this.closed = true;
 		clearTimeout(this.timer);
 		clearTimeout(this.answerTimer);
+		clearTimeout(this.saverTimer);
+		clearInterval(this.saverMoveTimer);
 		this.keys.dispose();
 		this.term.dispose();
 	}
@@ -211,12 +243,14 @@ export class Session {
 		// the answer to an earlier frame schedules this one
 		if (this.unanswered.length >= SYNC_WINDOW) return;
 		const caps = this.io.caps;
-		const frame: Frame = {
-			lines: this.screen.lines(this.term),
-			status: caps.statusLine ? this.statusCells() : undefined,
-			cursor: this.screen.cursor(this.term, this.cursorVisible),
-			scroll: { top: 0, bottom: caps.rows - 1 },
-		};
+		const frame: Frame = this.saving
+			? saverFrame(caps.rows, caps.columns, this.saverLine(), this.saverPlace, caps.statusLine)
+			: {
+					lines: this.screen.lines(this.term),
+					status: caps.statusLine ? this.statusCells() : undefined,
+					cursor: this.screen.cursor(this.term, this.cursorVisible),
+					scroll: { top: 0, bottom: caps.rows - 1 },
+				};
 		this.dirty = false;
 		let bytes = this.renderer.render(frame);
 		if (this.bell) {
@@ -249,6 +283,46 @@ export class Session {
 		const bytes = this.unanswered.reduce((sum, length) => sum + length, 0);
 		const ms = 1000 + (bytes * 1000) / (this.io.caps.bytesPerSecond ?? SYNC_BYTES_PER_SECOND);
 		this.answerTimer = setTimeout(() => this.answered(true), ms);
+	}
+
+	/** Start the screen saver once the configured spell passes without a key. */
+	private armSaver(): void {
+		clearTimeout(this.saverTimer);
+		this.saverTimer = undefined;
+		if (this.saver === "off" || this.closed) return;
+		this.saverTimer = setTimeout(() => this.startSaver(), this.saverMinutes * 60_000);
+	}
+
+	private startSaver(): void {
+		if (this.saving || this.closed) return;
+		this.saving = true;
+		// a light screen would stay lit
+		if (this.io.caps.screenReverse) this.io.write("\x1b[?5l");
+		this.moveSaver();
+		if (this.saver === "progress") this.saverMoveTimer = setInterval(() => this.moveSaver(), this.saverMoveMs);
+	}
+
+	private moveSaver(): void {
+		const { rows, columns } = this.io.caps;
+		this.saverPlace = saverPlace(rows, columns, this.saverLine()?.length ?? 0);
+		this.changed();
+	}
+
+	private wake(): void {
+		this.saving = false;
+		clearInterval(this.saverMoveTimer);
+		this.saverMoveTimer = undefined;
+		if (this.io.caps.screenReverse) this.io.write("\x1b[?5h");
+		this.armSaver();
+		this.changed();
+	}
+
+	/** The progress saver's line: the program's title, and whether its screen still changes. */
+	private saverLine(): number[] | undefined {
+		if (this.saver !== "progress") return undefined;
+		const name = this.title.trim() || "vt420-term";
+		const line = this.charset.cells(`${name} · ${activity(Date.now() - this.changedAt)}`);
+		return truncateCells(line, this.io.caps.columns, this.charset.cells("…"));
 	}
 
 	/** The program's title on the right, as the footer sits in pi-vt420, and Alt while the meta key is pending. */

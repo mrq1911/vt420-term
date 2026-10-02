@@ -104,6 +104,38 @@ describe("vt420-term session", () => {
 		expect(terminal.emulator.statusText()).toMatch(/^ ESCOP > ESC\[1;3P +pi$/);
 	});
 
+	it("darkens the terminal after a spell without keys, and the key that wakes it does not reach the program", async () => {
+		const { terminal, child } = start({}, { screensaver: "blank", screensaverMinutes: 0.003 });
+		child.print("hello\r\n");
+		await settle(300);
+		expect(terminal.emulator.screen().every((row) => row === "")).toBe(true);
+		expect(terminal.emulator.statusText().trim()).toBe("");
+		terminal.type("x");
+		await settle(60);
+		expect(terminal.row(0)).toBe("hello");
+		expect(child.input).toBe("");
+		terminal.type("y");
+		await settle(20);
+		expect(child.input).toBe("y");
+	});
+
+	it("shows the program's title and whether its screen changes, somewhere else every so often", async () => {
+		const { terminal, child } = start({}, { screensaver: "progress", screensaverMinutes: 0.003, saverMoveMs: 60 });
+		child.print("\x1b]0;build\x07");
+		await settle(300);
+		const places = new Set<string>();
+		for (let look = 0; look < 6; look++) {
+			const lit = terminal.emulator
+				.screen()
+				.flatMap((row, index) => (row === "" ? [] : [{ row: index, text: row }]));
+			expect(lit).toHaveLength(1);
+			expect(lit[0]!.text.trim()).toBe("build · busy");
+			places.add(`${lit[0]!.row}:${lit[0]!.text.indexOf("b")}`);
+			await settle(70);
+		}
+		expect(places.size).toBeGreaterThan(1);
+	});
+
 	it("waits for a synchronized update to finish", async () => {
 		const { terminal, child } = start();
 		await settle(40);

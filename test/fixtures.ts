@@ -1,4 +1,5 @@
 import type { SessionChild, SessionTerminal } from "../src/session.ts";
+import { charsetDesignations } from "../src/vt420/sequences.ts";
 import type { TerminalCapabilities } from "../src/vt420/terminal.ts";
 import { type EmulatorOptions, Vt420Emulator } from "./emulator.ts";
 
@@ -43,6 +44,8 @@ export class EmulatedTerminal implements SessionTerminal {
 				else this.listener?.(chunk);
 			},
 		});
+		// the designations the terminal layer sets up before a session starts
+		this.emulator.feed(charsetDesignations(this.caps));
 	}
 
 	write(bytes: string): void {

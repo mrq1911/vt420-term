@@ -38,6 +38,15 @@ The terminal options are pi-vt420's: `--columns 80|132`, `--lines 24|36|48`, `--
 program got for it, on the status line. See `vt420-term --help`. Programs find the terminal's name in `VT420_TERM`, so
 ones made for the VT420, pi-vt420 among them, know what is at the end of the line.
 
+## Screen saver
+
+A CRT keeps a picture it shows for hours, and a program in a pane can run that long, so after ten minutes without a key
+the terminal goes dark while the program runs on. `--screensaver progress`, the default on DEC terminals, shows the
+program's title and whether its screen still changes (`zellij (main) · busy`, `· quiet 12m`) in another place every
+half minute; `blank` shows nothing; `off` is the default on emulators. `--screensaver-minutes` sets the wait. Any key
+wakes the screen and does not reach the program. With zellij-vt420 the options go before `--`:
+`zellij-vt420 --screensaver blank -- attach main`.
+
 ## Keys
 
 | LK401 | The program sees |

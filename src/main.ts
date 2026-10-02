@@ -3,6 +3,7 @@
  */
 
 import { spawn } from "node-pty";
+import { isSaverMode, type SaverMode } from "./saver.ts";
 import { Session } from "./session.ts";
 import type { SupplementalSet } from "./vt420/charset.ts";
 import { Vt420Terminal, type Vt420TerminalOptions } from "./vt420/terminal.ts";
@@ -20,6 +21,9 @@ Program
       --term <name>         TERM for the program (default xterm-256color)
       --meta-key <key>      key that sends Alt with the next key: f6-f14, f17-f20, help, do or none (default f14)
       --show-keys           show each key's bytes, and what the program got, on the status line
+      --screensaver <mode>  auto, off, blank or progress: a dark screen after a spell without keys (auto is progress
+                            on a DEC terminal, off on emulators)
+      --screensaver-minutes <n>  minutes without a key before it starts (default 10)
 
 Terminal
       --columns 80|132      switch the terminal to 80 or 132 columns (DECSCPP)
@@ -42,6 +46,8 @@ interface Args {
 	term: string;
 	metaKey: string;
 	showKeys: boolean;
+	screensaver: SaverMode | "auto";
+	screensaverMinutes?: number;
 	command: string[];
 }
 
@@ -65,6 +71,7 @@ function parseArgs(argv: readonly string[]): Args {
 		term: "xterm-256color",
 		metaKey: "f14",
 		showKeys: false,
+		screensaver: "auto",
 		command: [],
 	};
 	const mode = (arg: string, value: string, allowed: readonly string[]): string => {
@@ -108,6 +115,18 @@ function parseArgs(argv: readonly string[]): Args {
 			case "--show-keys":
 				args.showKeys = true;
 				break;
+			case "--screensaver": {
+				const saver = value();
+				if (saver !== "auto" && !isSaverMode(saver)) fail("--screensaver must be auto, off, blank or progress");
+				args.screensaver = saver;
+				break;
+			}
+			case "--screensaver-minutes": {
+				const minutes = Number(value());
+				if (!Number.isFinite(minutes) || minutes <= 0) fail("--screensaver-minutes needs a positive number");
+				args.screensaverMinutes = minutes;
+				break;
+			}
 			case "--columns": {
 				const columns = Number(value());
 				if (columns !== 80 && columns !== 132) fail("--columns must be 80 or 132");
@@ -201,7 +220,12 @@ async function main(): Promise<void> {
 		process.stderr.write(`vt420-term: ${error.stack ?? error.message}\n`);
 		process.exit(1);
 	});
-	const session = new Session(terminal, child, { metaKey: args.metaKey, showKeys: args.showKeys });
+	const session = new Session(terminal, child, {
+		metaKey: args.metaKey,
+		showKeys: args.showKeys,
+		screensaver: args.screensaver,
+		screensaverMinutes: args.screensaverMinutes,
+	});
 	finish(await session.run());
 }
 
