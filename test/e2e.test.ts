@@ -53,23 +53,35 @@ describe("vt420-term end to end", () => {
 		"runs zellij with the VT420 profile",
 		async () => {
 			const session = `vt420-test-${process.pid}`;
-			const vt420 = run(["--", "zellij", "--config", "zellij/vt420.kdl", "--session", session]);
+			// a plain shell in the panes, and zellij-vt420-help on the PATH as bin/zellij-vt420 puts it there
+			const vt420 = run(["--", "zellij", "--config", "zellij/vt420.kdl", "--session", session], {
+				SHELL: "/bin/sh",
+				PATH: `${process.cwd()}/bin:${process.env.PATH}`,
+			});
+			const screen = (): string => vt420.emulator.screen().join("\n");
 			try {
 				await settle(4000);
-				const screen = vt420.emulator.screen();
 				// the compact bar on the last row, and zellij's title, the session, on the status line
-				expect(screen[23]).toContain("Zellij");
+				expect(vt420.emulator.screen()[23]).toContain("Zellij");
 				expect(vt420.emulator.statusText()).toContain(session);
-				// PF1 enters pane mode, Do (F5) leaves it for session mode, F11 (Escape) back to normal; F8 opens a pane
+				// PF1 alone is the program's; F14 then PF1 enters pane mode, where Do (F5) needs no F14 to go on to
+				// session mode, and F11 (Escape) goes back to normal
 				vt420.child.write("\x1bOP");
 				await settle(500);
-				expect(vt420.emulator.screen().join("\n")).toContain("PANE");
+				expect(vt420.emulator.screen()[23]).toContain("NORMAL");
+				vt420.child.write("\x1b[26~\x1bOP");
+				await settle(500);
+				expect(screen()).toContain("PANE");
 				vt420.child.write("\x1b[29~");
 				await settle(500);
-				expect(vt420.emulator.screen().join("\n")).toContain("SESSION");
-				vt420.child.write("\x1b[23~\x1b[19~");
+				expect(screen()).toContain("SESSION");
+				// F14 F8 opens a pane, F14 Help shows the keys
+				vt420.child.write("\x1b[23~\x1b[26~\x1b[19~");
 				await settle(1500);
-				expect(vt420.emulator.screen().join("\n").match(/│/g)?.length ?? 0).toBeGreaterThan(10);
+				expect(screen().match(/│/g)?.length ?? 0).toBeGreaterThan(10);
+				vt420.child.write("\x1b[26~\x1b[28~");
+				await settle(1500);
+				expect(screen()).toContain("LK401 keys in zellij");
 				expect(vt420Violations(vt420.bytes())).toEqual([]);
 			} finally {
 				vt420.child.kill();

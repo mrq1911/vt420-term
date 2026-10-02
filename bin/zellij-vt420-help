@@ -1,0 +1,24 @@
+#!/usr/bin/env bash
+# The LK401 keys of zellij's VT420 profile, shown by F14 Help in a floating pane; any key closes it.
+printf '\033[?25l'
+cat <<'EOF'
+ LK401 keys in zellij: F14, then the key               any key closes
+
+ Help     this sheet                 F11      Escape, back to normal mode
+ F6 F7    focus left, right          F14 F14  F14 itself, to the program
+ F8       new pane                   F17 F18  previous, next tab
+ F9       floating panes             F19      new tab
+ F10      fullscreen pane            F20      pane frames
+
+ PF1 pane     n new  d down  r right  s stacked  x close  arrows focus
+              f full  w float  e embed  z frames  c rename  m move  i pin
+ PF2 tab      n new  x close  arrows switch  1-9 go to  Tab last  r rename
+              b break out  [ ] break left, right  s sync
+ PF3 resize   arrows grow  H J K L shrink  + - whole pane
+ PF4 scroll   arrows, Prev, Next scroll  d u half page  s search  e edit
+ Do  session  d detach  w sessions  c config  p plugins  l layouts  q quit
+
+ Without F14 the keys go to the program. In a mode they need no F14,
+ and the mode's key or F11 goes back.
+EOF
+read -rsn1

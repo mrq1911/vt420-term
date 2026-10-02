@@ -2,8 +2,8 @@
  * The adapter: a program runs in a pseudo-terminal and believes it talks to xterm, xterm.js emulates that terminal
  * in memory, and the VT420 only ever sees what the renderer draws from the emulated screen. Frames are composed from
  * the latest state, so a program that floods its output costs the serial line no more than the screen it ends up
- * showing; they wait for synchronized updates to finish, and each ends with a DA1 request so the terminal is never
- * more than a frame behind, whatever it is still drawing.
+ * showing; they wait for synchronized updates to finish, and each ends with a DSR request (DA1 where the terminal
+ * ignores DSR) so the terminal is never more than a frame behind, whatever it is still drawing.
  */
 
 import { Unicode11Addon } from "@xterm/addon-unicode11";
@@ -13,7 +13,7 @@ import { ScreenMapper } from "./screen.ts";
 import { ATTR_BOLD, BLANK } from "./vt420/cells.ts";
 import { Charset } from "./vt420/charset.ts";
 import { type Frame, type Renderer, rendererFor } from "./vt420/renderer.ts";
-import type { TerminalCapabilities } from "./vt420/terminal.ts";
+import { DEC_ESCAPE_TIMEOUT_MS, EMULATOR_ESCAPE_TIMEOUT_MS, type TerminalCapabilities } from "./vt420/terminal.ts";
 import { spaces, truncateCells } from "./vt420/text.ts";
 
 /** The terminal side: a VT420, or anything that plays one. */
@@ -39,12 +39,27 @@ export interface SessionOptions {
 	metaKey?: string;
 	/** Shortest time between frames. */
 	frameMs?: number;
+	/** Show the last key the terminal sent, and what the program got for it, on the status line. */
+	showKeys?: boolean;
 }
 
-const SYNC = "\x1b[c";
+/** Bytes as a status line can show them: ESC, ^X for other controls. */
+function visible(bytes: string): string {
+	let out = "";
+	for (const char of bytes) {
+		const code = char.charCodeAt(0);
+		if (code === 0x1b) out += "ESC";
+		else if (code < 0x20) out += `^${String.fromCharCode(code + 0x40)}`;
+		else if (code === 0x7f) out += "^?";
+		else out += char;
+	}
+	return out.length > 24 ? `${out.slice(0, 23)}…` : out;
+}
+
 /** Frames sent but not yet answered, at most. */
 const SYNC_WINDOW = 2;
-const SYNC_TIMEOUT_MS = 1000;
+/** Line speed assumed for how long an answer may take when the real one is unknown: 9600 baud. */
+const SYNC_BYTES_PER_SECOND = 960;
 /** How long a synchronized update may hold back frames before the screen is drawn anyway. */
 const SYNCHRONIZED_HOLD_MS = 150;
 
@@ -60,22 +75,28 @@ export class Session {
 	private dirty = true;
 	private timer: ReturnType<typeof setTimeout> | undefined;
 	private answerTimer: ReturnType<typeof setTimeout> | undefined;
-	private unanswered = 0;
-	private sync: boolean;
+	/** Bytes of each frame the terminal has not answered yet. */
+	private unanswered: number[] = [];
+	/** Ends each frame: DSR 5, whose answer is four bytes, or DA1 where DSR goes unanswered. */
+	private sync: string | undefined;
 	private lastFrame = 0;
 	private heldSince: number | undefined;
 	private cursorVisible = true;
 	private title = "";
 	private bell = false;
 	private closed = false;
+	private readonly showKeys: boolean;
+	private keyIn = "";
+	private keyOut = "";
 	private exited: Promise<number>;
 
 	constructor(io: SessionTerminal, child: SessionChild, options: SessionOptions = {}) {
 		this.io = io;
 		this.child = child;
 		this.frameMs = options.frameMs ?? 16;
+		this.showKeys = options.showKeys ?? false;
 		const caps = io.caps;
-		this.sync = caps.level > 0;
+		this.sync = caps.deviceStatus ? "\x1b[5n" : caps.level > 0 ? "\x1b[c" : undefined;
 		this.charset = new Charset({
 			technical: caps.technical,
 			supplemental: caps.supplemental,
@@ -103,7 +124,13 @@ export class Session {
 			this.changed();
 		});
 		this.keys = new KeyTranslator({
-			send: (bytes) => child.write(bytes),
+			send: (bytes) => {
+				child.write(bytes);
+				if (this.showKeys) {
+					this.keyOut = visible(bytes);
+					this.changed();
+				}
+			},
 			answered: () => this.answered(false),
 			modes: () => ({
 				applicationCursorKeys: this.term.modes.applicationCursorKeysMode,
@@ -113,7 +140,10 @@ export class Session {
 			unicode: () => this.io.caps.unicode,
 			metaKey: options.metaKey === "none" ? undefined : (options.metaKey ?? "f14"),
 			metaChanged: () => this.changed(),
-			escapeTimeoutMs: caps.bytesPerSecond ? Math.max(50, 4000 / caps.bytesPerSecond) : 50,
+			escapeTimeoutMs: Math.max(
+				caps.unicode ? EMULATOR_ESCAPE_TIMEOUT_MS : DEC_ESCAPE_TIMEOUT_MS,
+				caps.bytesPerSecond ? 4000 / caps.bytesPerSecond : 0,
+			),
 		});
 		this.exited = new Promise((resolve) => {
 			child.onExit(({ exitCode }) => {
@@ -122,7 +152,15 @@ export class Session {
 			});
 		});
 		child.onData((data) => this.term.write(data, () => this.changed()));
-		io.onData((chunk) => this.keys.feed(chunk));
+		io.onData((chunk) => {
+			// the terminal's answers to the adapter's own requests are not keys
+			if (this.showKeys && !/^\x1b\[(\?[\d;]*c|[03]n)$/.test(chunk.toString("latin1"))) {
+				this.keyIn = visible(chunk.toString("latin1"));
+				this.keyOut = "";
+				this.changed();
+			}
+			this.keys.feed(chunk);
+		});
 		io.onResize(() => this.resize());
 		this.schedule(0);
 	}
@@ -171,7 +209,7 @@ export class Session {
 		}
 		this.heldSince = undefined;
 		// the answer to an earlier frame schedules this one
-		if (this.sync && this.unanswered >= SYNC_WINDOW) return;
+		if (this.unanswered.length >= SYNC_WINDOW) return;
 		const caps = this.io.caps;
 		const frame: Frame = {
 			lines: this.screen.lines(this.term),
@@ -187,33 +225,37 @@ export class Session {
 		}
 		if (bytes === "") return;
 		if (this.sync) {
-			bytes += SYNC;
-			this.unanswered++;
-			clearTimeout(this.answerTimer);
-			this.answerTimer = setTimeout(() => this.answered(true), SYNC_TIMEOUT_MS);
+			bytes += this.sync;
+			this.unanswered.push(bytes.length);
+			this.armAnswerTimer();
 		}
 		this.io.write(bytes);
 		this.lastFrame = Date.now();
 	}
 
 	private answered(timedOut: boolean): void {
-		if (this.unanswered === 0) return;
-		clearTimeout(this.answerTimer);
-		if (timedOut) {
-			// a terminal that stops answering gets frames without the request
-			this.sync = false;
-			this.unanswered = 0;
-		} else {
-			this.unanswered--;
-			if (this.unanswered > 0) this.answerTimer = setTimeout(() => this.answered(true), SYNC_TIMEOUT_MS);
-		}
+		if (this.unanswered.length === 0) return;
+		// past the time the frames out could take, an answer counts as lost on the way
+		if (timedOut) this.unanswered = [];
+		else this.unanswered.shift();
+		this.armAnswerTimer();
 		if (this.dirty) this.schedule();
+	}
+
+	private armAnswerTimer(): void {
+		clearTimeout(this.answerTimer);
+		this.answerTimer = undefined;
+		if (this.unanswered.length === 0) return;
+		const bytes = this.unanswered.reduce((sum, length) => sum + length, 0);
+		const ms = 1000 + (bytes * 1000) / (this.io.caps.bytesPerSecond ?? SYNC_BYTES_PER_SECOND);
+		this.answerTimer = setTimeout(() => this.answered(true), ms);
 	}
 
 	/** The program's title on the right, as the footer sits in pi-vt420, and Alt while the meta key is pending. */
 	private statusCells(): number[] {
 		const columns = this.io.caps.columns;
-		const left = this.keys.metaPending ? this.charset.cells(" Alt", ATTR_BOLD) : [];
+		const keys = this.showKeys && this.keyIn ? ` ${this.keyIn} > ${this.keyOut || "nothing"}` : "";
+		const left = this.keys.metaPending ? this.charset.cells(" Alt", ATTR_BOLD) : keys ? this.charset.cells(keys) : [];
 		const room = Math.max(0, columns - 2 - left.length - 1);
 		const title = truncateCells(this.charset.cells(this.title), room, this.charset.cells("…"));
 		return [...left, ...spaces(columns - 1 - left.length - title.length), ...title, BLANK];

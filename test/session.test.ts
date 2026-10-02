@@ -1,14 +1,14 @@
 import { afterEach, describe, expect, it } from "vitest";
-import { Session } from "../src/session.ts";
+import { Session, type SessionOptions } from "../src/session.ts";
 import { EmulatedTerminal, FakeChild, settle } from "./fixtures.ts";
 import { vt420Violations } from "./safety.ts";
 
 const sessions: Session[] = [];
 
-function start(caps: ConstructorParameters<typeof EmulatedTerminal>[0] = {}) {
+function start(caps: ConstructorParameters<typeof EmulatedTerminal>[0] = {}, options: SessionOptions = {}) {
 	const terminal = new EmulatedTerminal(caps);
 	const child = new FakeChild();
-	const session = new Session(terminal, child);
+	const session = new Session(terminal, child, options);
 	sessions.push(session);
 	return { terminal, child, session };
 }
@@ -69,6 +69,39 @@ describe("vt420-term session", () => {
 		terminal.release();
 		await settle(120);
 		expect(terminal.row(22)).toBe("line 29");
+	});
+
+	it("paces with DSR where the terminal answers it, and gets past answers lost on the way", async () => {
+		const { terminal, child } = start({ deviceStatus: true, bytesPerSecond: 1_000_000 });
+		await settle(40);
+		const requests = (): number => terminal.bytes.toString("latin1").split("\x1b[5n").length - 1;
+		expect(requests()).toBe(1);
+		expect(terminal.bytes.toString("latin1")).not.toContain("\x1b[c");
+		// answers that never come: two frames go out, the rest wait until the frames out would have been drawn
+		terminal.holdAnswers = true;
+		for (let line = 0; line < 10; line++) {
+			child.print(`line ${line}\r\n`);
+			await settle(25);
+		}
+		expect(requests()).toBe(3);
+		expect(terminal.row(9)).not.toBe("line 9");
+		await settle(1200);
+		expect(terminal.row(9)).toBe("line 9");
+	});
+
+	it("shows each key and what the program got for it, with showKeys", async () => {
+		const { terminal, child } = start({}, { showKeys: true });
+		child.print("\x1b]0;pi\x07");
+		await settle(40);
+		terminal.type("\x1b[28~");
+		await settle(40);
+		expect(terminal.emulator.statusText()).toMatch(/^ ESC\[28~ > ESC\[1;2R +pi$/);
+		terminal.type("\x1b[26~");
+		await settle(40);
+		expect(terminal.emulator.statusText()).toMatch(/^ Alt +pi$/);
+		terminal.type("\x1bOP");
+		await settle(40);
+		expect(terminal.emulator.statusText()).toMatch(/^ ESCOP > ESC\[1;3P +pi$/);
 	});
 
 	it("waits for a synchronized update to finish", async () => {

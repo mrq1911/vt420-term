@@ -19,6 +19,7 @@ what vt420-term draws from that screen, in DEC character sets and attributes it 
 Program
       --term <name>         TERM for the program (default xterm-256color)
       --meta-key <key>      key that sends Alt with the next key: f6-f14, f17-f20, help, do or none (default f14)
+      --show-keys           show each key's bytes, and what the program got, on the status line
 
 Terminal
       --columns 80|132      switch the terminal to 80 or 132 columns (DECSCPP)
@@ -40,6 +41,7 @@ interface Args {
 	terminal: Vt420TerminalOptions;
 	term: string;
 	metaKey: string;
+	showKeys: boolean;
 	command: string[];
 }
 
@@ -57,12 +59,12 @@ function parseArgs(argv: readonly string[]): Args {
 			supplemental: "auto",
 			eightBit: false,
 			flowControl: true,
-			escapeTimeoutMs: 50,
 			probeTimeoutMs: 1500,
 			keypad: "application",
 		},
 		term: "xterm-256color",
 		metaKey: "f14",
+		showKeys: false,
 		command: [],
 	};
 	const mode = (arg: string, value: string, allowed: readonly string[]): string => {
@@ -102,6 +104,9 @@ function parseArgs(argv: readonly string[]): Args {
 					"do",
 					"none",
 				]);
+				break;
+			case "--show-keys":
+				args.showKeys = true;
 				break;
 			case "--columns": {
 				const columns = Number(value());
@@ -173,7 +178,8 @@ async function main(): Promise<void> {
 			cols: terminal.caps.columns,
 			rows: terminal.caps.rows,
 			cwd: process.cwd(),
-			env: { ...process.env, TERM: args.term },
+			// programs made for the VT420, pi-vt420 among them, learn what they really draw on
+			env: { ...process.env, TERM: args.term, VT420_TERM: terminal.caps.name },
 		});
 	} catch (error) {
 		terminal.close();
@@ -195,7 +201,7 @@ async function main(): Promise<void> {
 		process.stderr.write(`vt420-term: ${error.stack ?? error.message}\n`);
 		process.exit(1);
 	});
-	const session = new Session(terminal, child, { metaKey: args.metaKey });
+	const session = new Session(terminal, child, { metaKey: args.metaKey, showKeys: args.showKeys });
 	finish(await session.run());
 }
 

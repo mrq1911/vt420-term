@@ -1,11 +1,12 @@
 /**
  * Keyboard input from the terminal for a program that expects xterm. Bytes pass through as they are except where
  * the LK401 differs: F11, F12 and F13 are Escape, BS and LF as in VT100 mode (the LK401 has no Escape key); Do is
- * F5, a code the LK401 never sends, its F5 being the local Break key; Find and Select are Home and End; cursor and
+ * F5, a code the LK401 never sends, its F5 being the local Break key; F14 to F20, Help among them, are sent as xterm
+ * sends them, as Shift with F2 to F8, so programs and zellij can bind them; Find and Select are Home and End; cursor and
  * keypad keys follow the program's modes, the keypad itself being kept in
  * application mode so its keys stay apart from the main digits; 8-bit supplemental characters become Unicode; a meta
- * key puts ESC before the next key, for the Alt bindings the LK401 cannot type; and the terminal's answers to the
- * adapter's own requests never reach the program.
+ * key sends the next key with Alt, which the LK401 cannot type, and pressed twice sends itself; and the terminal's
+ * answers to the adapter's own requests never reach the program.
  */
 
 import { StringDecoder } from "node:string_decoder";
@@ -19,7 +20,7 @@ export interface KeyModes {
 export interface KeyTranslatorOptions {
 	/** Bytes for the program, as a string of Unicode characters. */
 	send(bytes: string): void;
-	/** The terminal answered a device attributes request. */
+	/** The terminal answered a device status or attributes request. */
 	answered(): void;
 	modes(): KeyModes;
 	supplemental(): SupplementalSet;
@@ -48,6 +49,16 @@ const TILDE_NAMES: Record<number, string> = {
 	32: "f18",
 	33: "f19",
 	34: "f20",
+};
+
+/** F14 to F20 as xterm sends them, Shift with F2 to F8; Help is F15, xterm's Shift+F3. */
+const XTERM_SHIFTED: Record<number, (modifier: number) => string> = {
+	26: (modifier) => `\x1b[1;${modifier}Q`,
+	28: (modifier) => `\x1b[1;${modifier}R`,
+	31: (modifier) => `\x1b[15;${modifier}~`,
+	32: (modifier) => `\x1b[17;${modifier}~`,
+	33: (modifier) => `\x1b[18;${modifier}~`,
+	34: (modifier) => `\x1b[19;${modifier}~`,
 };
 
 /** Keypad keys in application mode and what they type in numeric mode. */
@@ -202,7 +213,7 @@ export class KeyTranslator {
 		const final = sequence.at(-1)!;
 		const body = sequence.slice(0, -1);
 		// answers to the adapter's own requests
-		if (final === "c" && body.startsWith("?")) {
+		if ((final === "c" && body.startsWith("?")) || (final === "n" && (body === "0" || body === "3"))) {
 			this.options.answered();
 			return;
 		}
@@ -214,11 +225,15 @@ export class KeyTranslator {
 		if (final === "~" && /^\d+$/.test(body)) {
 			const code = Number(body);
 			const name = TILDE_NAMES[code];
-			if (name && name === this.options.metaKey) {
-				this.setMeta(!this.meta);
+			// the meta key pressed twice is itself
+			if (name && name === this.options.metaKey && !this.takeMeta()) {
+				this.setMeta(true);
 				return;
 			}
-			if (code === 1) this.send(this.cursorKey("H"));
+			const shifted = XTERM_SHIFTED[code];
+			// with meta pending, Shift and Alt
+			if (shifted) this.deliver(shifted(this.takeMeta() ? 4 : 2));
+			else if (code === 1) this.send(this.cursorKey("H"));
 			else if (code === 4) this.send(this.cursorKey("F"));
 			else if (code === 23) this.send("\x1b");
 			else if (code === 24) this.send("\b");
@@ -234,6 +249,11 @@ export class KeyTranslator {
 	private ss3(char: string): void {
 		if ("ABCDHF".includes(char)) {
 			this.send(this.cursorKey(char));
+			return;
+		}
+		// PF1 to PF4 are xterm's F1 to F4, which take Alt as a parameter
+		if ("PQRS".includes(char) && this.takeMeta()) {
+			this.deliver(`\x1b[1;3${char}`);
 			return;
 		}
 		const typed = KEYPAD[char];

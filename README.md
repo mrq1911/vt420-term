@@ -18,7 +18,8 @@ git clone https://github.com/mrq1911/vt420-term.git ~/.local/share/vt420-term
 ```
 
 `install.sh` installs the dependencies without lifecycle scripts, builds node-pty's native module (a C++ compiler and
-Python are needed), and links `vt420-term`, `zellij-vt420` and `vt420-term-update` into `~/.local/bin`. Node 22.18 or
+Python are needed), and links `vt420-term`, `zellij-vt420`, its key sheet `zellij-vt420-help` and `vt420-term-update`
+into `~/.local/bin`. Node 22.18 or
 later runs the TypeScript directly. `vt420-term-update` pulls and runs the same steps again.
 
 ## Use
@@ -33,14 +34,17 @@ zellij-vt420 --baud 9600 -- attach main
 
 The terminal options are pi-vt420's: `--columns 80|132`, `--lines 24|36|48`, `--status-line`, `--encoding`,
 `--latin1`/`--dec-mcs`, `--8bit`, `--baud`, `--no-flow-control` and `--log`; `--term` sets the program's `TERM`
-(xterm-256color), and `--meta-key` the key that sends Alt (F14). See `vt420-term --help`.
+(xterm-256color), `--meta-key` the key that sends Alt (F14), and `--show-keys` puts what each key sent, and what the
+program got for it, on the status line. See `vt420-term --help`. Programs find the terminal's name in `VT420_TERM`, so
+ones made for the VT420, pi-vt420 among them, know what is at the end of the line.
 
 ## Keys
 
 | LK401 | The program sees |
 | --- | --- |
 | F11, F12, F13 | Escape, BS and LF, as in VT100 mode; the LK401 has no Escape key |
-| F14 | Alt with the next key (`--meta-key` changes or disables it); the status line shows **Alt** while it waits |
+| F14 | Alt with the next key, and F14 itself when pressed twice (`--meta-key` changes or disables it); the status line shows **Alt** while it waits |
+| Help, F17-F20 | xterm's F15 and F17-F20, which it sends as Shift with F3 and F5-F8 |
 | Do | F5, a code the LK401 never sends (its F5 is the local Break key) |
 | PF1-PF4 | F1-F4, which xterm sends with the same codes |
 | Find, Select | Home and End |
@@ -52,17 +56,22 @@ After Escape the next key waits 80 ms, so a program cannot read the two as Alt a
 ## zellij
 
 `zellij-vt420` starts zellij with `zellij/vt420.kdl`: zellij's default keymap without Ctrl s and Ctrl q, which are
-XOFF and XON on a serial line, and with the LK401's keys added.
+XOFF and XON on a serial line, and Ctrl h, which is the BS that F12 sends. The LK401's keys work zellij with Alt, that
+is F14 and then the key, and stay the programs' otherwise, so pi-vt420, htop and mc keep their function keys.
 
-| Key | Action |
+| F14, then | Action |
 | --- | --- |
-| PF1, PF2, PF3, PF4, Do | pane, tab, resize, scroll and session mode; the same key leaves it |
+| PF1, PF2, PF3, PF4, Do | pane, tab, resize, scroll and session mode; in a mode the keys need no F14, and the mode's own key leaves it |
 | F6, F7 | focus left and right, across tabs at the edges |
 | F8 | new pane |
 | F9 | show and hide floating panes |
 | F10 | fullscreen the focused pane |
-| Do, q | quit (session mode, then q) |
-| F14, then a key | zellij's Alt bindings, such as Alt n or Alt and the arrows |
+| Help | these keys, in a floating pane |
+| F17, F18 | previous and next tab |
+| F19, F20 | new tab, pane frames on and off |
+| a letter or an arrow | zellij's Alt bindings, such as Alt n or Alt and the arrows |
+
+Do then q quits, and move mode is m in pane mode.
 
 It also uses the compact layout (one bar), `simplified_ui` (no Powerline glyphs), and turns off the mouse, startup tips
 and the kitty keyboard protocol. Zellij's title (the session and the focused pane) goes to the VT420's status line.
@@ -90,9 +99,10 @@ Set `ZELLIJ_VT420_CONFIG` to use a profile of your own.
 - **The latest screen, never the history**: frames are composed from the emulated screen, so a program that floods its
   output costs the line no more than the screen it ends up showing. Zellij's own output for its first five seconds is
   22 KB; the whole 17-second session in the GIF sent 2.7 KB to the terminal, under 1.5 s of a 19200 baud line.
-- **Pacing**: each frame ends with a DA1 request, and a frame goes out only while at most one other is unanswered, so
-  the VT420 is never more than a frame behind, even with smooth scroll set up. Frames wait for synchronized updates
-  (mode 2026) to finish.
+- **Pacing**: each frame ends with a DSR request, whose answer is four bytes (DA1 where the terminal ignores DSR), and
+  a frame goes out only while at most one other is unanswered, so the VT420 is never more than a frame behind, even
+  with smooth scroll set up or no flow control on the way. An answer lost on the line holds frames back only until the
+  ones out could have been drawn. Frames wait for synchronized updates (mode 2026) to finish.
 - **Panes scroll in hardware**: when a rectangle of the screen moved up or down, such as one pane scrolling next to
   others, the renderer scrolls it inside left and right margins (DECLRMM, DECSLRM) with IND or RI and writes only the
   new lines. The rectangle is the maximum-sum subrectangle of per-cell gains, and a measured trial decides whether
