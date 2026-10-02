@@ -136,6 +136,20 @@ describe("vt420-term session", () => {
 		expect(places.size).toBeGreaterThan(1);
 	});
 
+	it("sends a full screen to a DEC terminal in answered pieces, two at most on the line", async () => {
+		const { terminal, child } = start({ deviceStatus: true });
+		await settle(40);
+		terminal.holdAnswers = true;
+		const requests = (): number => terminal.bytes.toString("latin1").split("\x1b[5n").length - 1;
+		const before = requests();
+		child.print(Array.from({ length: 22 }, (_, row) => `${row} ${"the quick brown fox ".repeat(3)}`).join("\r\n"));
+		await settle(80);
+		expect(requests() - before).toBe(2);
+		terminal.release();
+		await settle(300);
+		expect(terminal.row(21)).toMatch(/^21 the quick brown fox/);
+	});
+
 	it("waits for a synchronized update to finish", async () => {
 		const { terminal, child } = start();
 		await settle(40);

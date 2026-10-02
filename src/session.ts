@@ -65,6 +65,26 @@ function visible(bytes: string): string {
 const SYNC_WINDOW = 2;
 /** Line speed assumed for how long an answer may take when the real one is unknown: 9600 baud. */
 const SYNC_BYTES_PER_SECOND = 960;
+/**
+ * A DEC terminal gets a frame in pieces of at most this many bytes, each answered before the window lets more out,
+ * so a whole screen never runs ahead of it: flow control that comes back over ssh comes too late to stop one.
+ */
+const SYNC_CHUNK = 160;
+
+/** Pieces joined into runs of at most `max` characters; a longer piece stays whole. */
+function chunks(parts: readonly string[], max: number): string[] {
+	const out: string[] = [];
+	let current = "";
+	for (const part of parts) {
+		if (current !== "" && current.length + part.length > max) {
+			out.push(current);
+			current = "";
+		}
+		current += part;
+	}
+	if (current !== "") out.push(current);
+	return out;
+}
 /** How long a synchronized update may hold back frames before the screen is drawn anyway. */
 const SYNCHRONIZED_HOLD_MS = 150;
 
@@ -80,8 +100,10 @@ export class Session {
 	private dirty = true;
 	private timer: ReturnType<typeof setTimeout> | undefined;
 	private answerTimer: ReturnType<typeof setTimeout> | undefined;
-	/** Bytes of each frame the terminal has not answered yet. */
+	/** Bytes of each piece the terminal has not answered yet. */
 	private unanswered: number[] = [];
+	/** Pieces of the last frame still to go out. */
+	private outbox: string[] = [];
 	/** Ends each frame: DSR 5, whose answer is four bytes, or DA1 where DSR goes unanswered. */
 	private sync: string | undefined;
 	private lastFrame = 0;
@@ -241,7 +263,7 @@ export class Session {
 		}
 		this.heldSince = undefined;
 		// the answer to an earlier frame schedules this one
-		if (this.unanswered.length >= SYNC_WINDOW) return;
+		if (this.outbox.length > 0 || this.unanswered.length >= SYNC_WINDOW) return;
 		const caps = this.io.caps;
 		const frame: Frame = this.saving
 			? saverFrame(caps.rows, caps.columns, this.saverLine(), this.saverPlace, caps.statusLine)
@@ -252,19 +274,30 @@ export class Session {
 					scroll: { top: 0, bottom: caps.rows - 1 },
 				};
 		this.dirty = false;
-		let bytes = this.renderer.render(frame);
+		const parts = this.renderer.renderParts(frame);
 		if (this.bell) {
-			bytes += "\x07";
+			parts.push("\x07");
 			this.bell = false;
 		}
-		if (bytes === "") return;
-		if (this.sync) {
-			bytes += this.sync;
+		if (parts.length === 0) return;
+		this.lastFrame = Date.now();
+		if (!this.sync) {
+			this.io.write(parts.join(""));
+			return;
+		}
+		// an emulator takes a whole frame at once
+		this.outbox = this.io.caps.unicode ? [parts.join("")] : chunks(parts, SYNC_CHUNK);
+		this.pump();
+	}
+
+	/** Send waiting pieces while the terminal has answered all but one of those out. */
+	private pump(): void {
+		while (this.sync && this.outbox.length > 0 && this.unanswered.length < SYNC_WINDOW) {
+			const bytes = this.outbox.shift()! + this.sync;
 			this.unanswered.push(bytes.length);
 			this.armAnswerTimer();
+			this.io.write(bytes);
 		}
-		this.io.write(bytes);
-		this.lastFrame = Date.now();
 	}
 
 	private answered(timedOut: boolean): void {
@@ -273,7 +306,8 @@ export class Session {
 		if (timedOut) this.unanswered = [];
 		else this.unanswered.shift();
 		this.armAnswerTimer();
-		if (this.dirty) this.schedule();
+		this.pump();
+		if (this.dirty && this.outbox.length === 0) this.schedule();
 	}
 
 	private armAnswerTimer(): void {

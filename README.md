@@ -108,10 +108,11 @@ Set `ZELLIJ_VT420_CONFIG` to use a profile of your own.
 - **The latest screen, never the history**: frames are composed from the emulated screen, so a program that floods its
   output costs the line no more than the screen it ends up showing. Zellij's own output for its first five seconds is
   22 KB; the whole 17-second session in the GIF sent 2.7 KB to the terminal, under 1.5 s of a 19200 baud line.
-- **Pacing**: each frame ends with a DSR request, whose answer is four bytes (DA1 where the terminal ignores DSR), and
-  a frame goes out only while at most one other is unanswered, so the VT420 is never more than a frame behind, even
-  with smooth scroll set up or no flow control on the way. An answer lost on the line holds frames back only until the
-  ones out could have been drawn. Frames wait for synchronized updates (mode 2026) to finish.
+- **Pacing**: a frame goes to a DEC terminal in pieces of 160 bytes at most, each ending with a DSR request, whose
+  answer is four bytes (DA1 where the terminal ignores DSR), and a piece goes out only while at most one other is
+  unanswered, so even a full screen never runs ahead of the VT420, with smooth scroll set up or flow control that
+  comes back over ssh too late to stop it. An answer lost on the line holds pieces back only until the ones out could
+  have been drawn. Frames wait for synchronized updates (mode 2026) to finish.
 - **Panes scroll in hardware**: when a rectangle of the screen moved up or down, such as one pane scrolling next to
   others, the renderer scrolls it inside left and right margins (DECLRMM, DECSLRM) with IND or RI and writes only the
   new lines. The rectangle is the maximum-sum subrectangle of per-cell gains, and a measured trial decides whether
