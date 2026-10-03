@@ -40,6 +40,8 @@ export interface SessionOptions {
 	metaKey?: string;
 	/** Shortest time between frames. */
 	frameMs?: number;
+	/** How long answers may lag the time the frames out take before probes start, and the first probe's wait. */
+	syncTimeoutMs?: number;
 	/** Show the last key the terminal sent, and what the program got for it, on the status line. */
 	showKeys?: boolean;
 	/** Screen saver after a spell without keys; "auto" is "progress" on a DEC terminal and "off" on emulators. */
@@ -65,6 +67,12 @@ function visible(bytes: string): string {
 const SYNC_WINDOW = 2;
 /** Line speed assumed for how long an answer may take when the real one is unknown: 9600 baud. */
 const SYNC_BYTES_PER_SECOND = 960;
+/** How long answers may lag what the frames out take, and the first probe's wait; each next one waits twice as long. */
+const SYNC_TIMEOUT_MS = 1000;
+/** The longest wait for a probe, in first waits. */
+const SYNC_PROBE_MAX = 8;
+/** Probes left unanswered before frames go out without answers, one window each time a probe does. */
+const SYNC_PROBES_BLIND = 4;
 /**
  * A DEC terminal gets a frame in pieces of at most this many bytes, each answered before the window lets more out,
  * so a whole screen never runs ahead of it: flow control that comes back over ssh comes too late to stop one.
@@ -107,7 +115,10 @@ export class Session {
 	/** Pieces of the last frame still to go out. */
 	private outbox: string[] = [];
 	/** Ends each frame: DSR 5, whose answer is four bytes, or DA1 where DSR goes unanswered. */
-	private sync: string | undefined;
+	private sync: { bytes: string; answer: "status" | "attributes" } | undefined;
+	/** Probes, DA1, out since answers stopped coming; while there are any, frames wait. */
+	private stallProbes = 0;
+	private readonly syncTimeoutMs: number;
 	private lastFrame = 0;
 	private heldSince: number | undefined;
 	private cursorVisible = true;
@@ -138,7 +149,12 @@ export class Session {
 		this.saver = saver === "auto" ? (caps.unicode ? "off" : "progress") : saver;
 		this.saverMinutes = options.screensaverMinutes ?? SAVER_MINUTES;
 		this.saverMoveMs = options.saverMoveMs ?? SAVER_MOVE_MS;
-		this.sync = caps.deviceStatus ? "\x1b[5n" : caps.level > 0 ? "\x1b[c" : undefined;
+		this.sync = caps.deviceStatus
+			? { bytes: "\x1b[5n", answer: "status" }
+			: caps.level > 0
+				? { bytes: "\x1b[c", answer: "attributes" }
+				: undefined;
+		this.syncTimeoutMs = options.syncTimeoutMs ?? SYNC_TIMEOUT_MS;
 		this.charset = new Charset({
 			technical: caps.technical,
 			supplemental: caps.supplemental,
@@ -179,7 +195,10 @@ export class Session {
 					this.changed();
 				}
 			},
-			answered: () => this.answered(false),
+			answered: (kind) => {
+				if (this.stallProbes > 0 && kind === "attributes") this.recovered();
+				else if (kind === this.sync?.answer) this.answered();
+			},
 			modes: () => ({
 				applicationCursorKeys: this.term.modes.applicationCursorKeysMode,
 				applicationKeypad: this.term.modes.applicationKeypadMode,
@@ -265,7 +284,7 @@ export class Session {
 		}
 		this.heldSince = undefined;
 		// the answer to an earlier frame schedules this one
-		if (this.outbox.length > 0 || this.unanswered.length >= this.window()) return;
+		if (this.outbox.length > 0 || this.held || this.unanswered.length >= this.window()) return;
 		const caps = this.io.caps;
 		const frame: Frame = this.saving
 			? saverFrame(caps.rows, caps.columns, this.saverLine(), this.saverPlace, caps.statusLine)
@@ -302,31 +321,71 @@ export class Session {
 
 	/** Send waiting pieces while the window has room. */
 	private pump(): void {
-		while (this.sync && this.outbox.length > 0 && this.unanswered.length < this.window()) {
-			const bytes = this.outbox.shift()! + this.sync;
+		while (this.sync && !this.held && this.outbox.length > 0 && this.unanswered.length < this.window()) {
+			const bytes = this.outbox.shift()! + this.sync.bytes;
 			this.unanswered.push(bytes.length);
 			this.armAnswerTimer();
 			this.io.write(bytes);
 		}
 	}
 
-	private answered(timedOut: boolean): void {
+	/** The terminal answered after the oldest piece still out, so it has drawn that one. */
+	private answered(): void {
 		if (this.unanswered.length === 0) return;
-		// past the time the frames out could take, an answer counts as lost on the way
-		if (timedOut) this.unanswered = [];
-		else this.unanswered.shift();
+		this.unanswered.shift();
+		// a late answer: the rest may follow, else the probe's answer settles them
+		if (this.stallProbes > 0 && this.unanswered.length > 0) return;
+		this.stallProbes = 0;
+		this.resume();
+	}
+
+	/** The probe came back: all that went out before it is drawn, and answers still missing were lost on the way. */
+	private recovered(): void {
+		this.stallProbes = 0;
+		this.unanswered = [];
+		this.resume();
+	}
+
+	private resume(): void {
 		this.armAnswerTimer();
 		this.pump();
 		if (this.dirty && this.outbox.length === 0) this.schedule();
 	}
 
+	/** Waiting on a probe, with nothing to go out until it is answered. */
+	private get held(): boolean {
+		return this.stallProbes > 0 && this.stallProbes < SYNC_PROBES_BLIND;
+	}
+
+	/**
+	 * Past the time the frames out could take, answers have stopped: lost on the way, or the terminal is held, in
+	 * Set-Up, by Hold Screen or by flow control. Then only a probe goes out, less often each time, so a held terminal
+	 * gets no backlog to wade through, or wedge the line with, once it goes on. One that answers no probe at all gets
+	 * a window's worth now and then.
+	 */
 	private armAnswerTimer(): void {
 		clearTimeout(this.answerTimer);
 		this.answerTimer = undefined;
-		if (this.unanswered.length === 0) return;
+		if (this.unanswered.length === 0 && this.stallProbes === 0) return;
 		const bytes = this.unanswered.reduce((sum, length) => sum + length, 0);
-		const ms = 1000 + (bytes * 1000) / (this.io.caps.bytesPerSecond ?? SYNC_BYTES_PER_SECOND);
-		this.answerTimer = setTimeout(() => this.answered(true), ms);
+		const ms =
+			this.stallProbes > 0
+				? this.syncTimeoutMs * Math.min(SYNC_PROBE_MAX, 2 ** (this.stallProbes - 1))
+				: this.syncTimeoutMs + (bytes * 1000) / (this.io.caps.bytesPerSecond ?? SYNC_BYTES_PER_SECOND);
+		this.answerTimer = setTimeout(() => this.probe(), ms);
+	}
+
+	private probe(): void {
+		this.answerTimer = undefined;
+		if (!this.sync || this.closed) return;
+		this.stallProbes++;
+		this.io.write("\x1b[c");
+		if (this.stallProbes >= SYNC_PROBES_BLIND) {
+			this.unanswered = [];
+			this.pump();
+			if (this.dirty && this.outbox.length === 0) this.schedule();
+		}
+		this.armAnswerTimer();
 	}
 
 	/** Start the screen saver once the configured spell passes without a key. */

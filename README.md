@@ -112,9 +112,10 @@ Set `ZELLIJ_VT420_CONFIG` to use a profile of your own.
   answer is four bytes (DA1 where the terminal ignores DSR), and a piece goes out only while at most one other is
   unanswered (three on a 38400 baud line), so even a full screen never runs ahead of the VT420, with smooth scroll
   set up or flow control that comes back over ssh too late to stop it. Limited transmit, which holds the terminal's
-  answers to 150 characters a second, is lifted for the session (DECXRLM) and put back on exit. An answer lost on the
-  line holds pieces back only until the ones out could have been drawn. Frames wait for synchronized updates (mode
-  2026) to finish.
+  answers to 150 characters a second, is lifted for the session (DECXRLM) and put back on exit. When answers stop
+  coming, lost on the line or held up by Set-Up, Hold Screen or flow control, only a DA1 probe goes out, less often
+  each time, until one is answered, so a held terminal never gets a backlog to wade through. Frames wait for
+  synchronized updates (mode 2026) to finish.
 - **Panes scroll in hardware**: when a rectangle of the screen moved up or down, such as one pane scrolling next to
   others, the renderer scrolls it inside left and right margins (DECLRMM, DECSLRM) with IND or RI and writes only the
   new lines. The rectangle is the maximum-sum subrectangle of per-cell gains, and a measured trial decides whether

@@ -72,12 +72,12 @@ describe("vt420-term session", () => {
 	});
 
 	it("paces with DSR where the terminal answers it, and gets past answers lost on the way", async () => {
-		const { terminal, child } = start({ deviceStatus: true, bytesPerSecond: 1920 });
+		const { terminal, child } = start({ deviceStatus: true, bytesPerSecond: 1920 }, { syncTimeoutMs: 100 });
 		await settle(40);
 		const requests = (): number => terminal.bytes.toString("latin1").split("\x1b[5n").length - 1;
 		expect(requests()).toBe(1);
 		expect(terminal.bytes.toString("latin1")).not.toContain("\x1b[c");
-		// answers that never come: two frames go out, the rest wait until the frames out would have been drawn
+		// answers held up: two frames go out, the rest wait
 		terminal.holdAnswers = true;
 		for (let line = 0; line < 10; line++) {
 			child.print(`line ${line}\r\n`);
@@ -85,7 +85,14 @@ describe("vt420-term session", () => {
 		}
 		expect(requests()).toBe(3);
 		expect(terminal.row(9)).not.toBe("line 9");
-		await settle(1200);
+		// past the time those could take, only probes go out, DA1, which a DSR answer cannot be taken for
+		await settle(300);
+		expect(requests()).toBe(3);
+		expect(terminal.bytes.toString("latin1").split("\x1b[c").length - 1).toBeGreaterThanOrEqual(2);
+		expect(terminal.row(9)).not.toBe("line 9");
+		// the terminal goes on: the probe's answer settles what was out, and the rest follows
+		terminal.release();
+		await settle(200);
 		expect(terminal.row(9)).toBe("line 9");
 	});
 

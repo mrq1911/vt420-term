@@ -20,8 +20,8 @@ export interface KeyModes {
 export interface KeyTranslatorOptions {
 	/** Bytes for the program, as a string of Unicode characters. */
 	send(bytes: string): void;
-	/** The terminal answered a device status or attributes request. */
-	answered(): void;
+	/** The terminal answered a device status (DSR) or attributes (DA1) request. */
+	answered(kind: "status" | "attributes"): void;
 	modes(): KeyModes;
 	supplemental(): SupplementalSet;
 	/** The terminal sends UTF-8 rather than DEC 8-bit characters. */
@@ -213,8 +213,12 @@ export class KeyTranslator {
 		const final = sequence.at(-1)!;
 		const body = sequence.slice(0, -1);
 		// answers to the adapter's own requests
-		if ((final === "c" && body.startsWith("?")) || (final === "n" && (body === "0" || body === "3"))) {
-			this.options.answered();
+		if (final === "c" && body.startsWith("?")) {
+			this.options.answered("attributes");
+			return;
+		}
+		if (final === "n" && (body === "0" || body === "3")) {
+			this.options.answered("status");
 			return;
 		}
 		if (final === "y" && body.endsWith("$")) return;
