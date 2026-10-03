@@ -72,7 +72,7 @@ describe("vt420-term session", () => {
 	});
 
 	it("paces with DSR where the terminal answers it, and gets past answers lost on the way", async () => {
-		const { terminal, child } = start({ deviceStatus: true, bytesPerSecond: 1_000_000 });
+		const { terminal, child } = start({ deviceStatus: true, bytesPerSecond: 1920 });
 		await settle(40);
 		const requests = (): number => terminal.bytes.toString("latin1").split("\x1b[5n").length - 1;
 		expect(requests()).toBe(1);
@@ -87,6 +87,18 @@ describe("vt420-term session", () => {
 		expect(terminal.row(9)).not.toBe("line 9");
 		await settle(1200);
 		expect(terminal.row(9)).toBe("line 9");
+	});
+
+	it("lets a 38400 baud line carry four pieces at once", async () => {
+		const { terminal, child } = start({ deviceStatus: true, bytesPerSecond: 3840 });
+		await settle(40);
+		const requests = (): number => terminal.bytes.toString("latin1").split("\x1b[5n").length - 1;
+		terminal.holdAnswers = true;
+		for (let line = 0; line < 10; line++) {
+			child.print(`line ${line}\r\n`);
+			await settle(25);
+		}
+		expect(requests()).toBe(5);
 	});
 
 	it("shows each key and what the program got for it, with showKeys", async () => {

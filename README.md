@@ -110,9 +110,11 @@ Set `ZELLIJ_VT420_CONFIG` to use a profile of your own.
   22 KB; the whole 17-second session in the GIF sent 2.7 KB to the terminal, under 1.5 s of a 19200 baud line.
 - **Pacing**: a frame goes to a DEC terminal in pieces of 160 bytes at most, each ending with a DSR request, whose
   answer is four bytes (DA1 where the terminal ignores DSR), and a piece goes out only while at most one other is
-  unanswered, so even a full screen never runs ahead of the VT420, with smooth scroll set up or flow control that
-  comes back over ssh too late to stop it. An answer lost on the line holds pieces back only until the ones out could
-  have been drawn. Frames wait for synchronized updates (mode 2026) to finish.
+  unanswered (three on a 38400 baud line), so even a full screen never runs ahead of the VT420, with smooth scroll
+  set up or flow control that comes back over ssh too late to stop it. Limited transmit, which holds the terminal's
+  answers to 150 characters a second, is lifted for the session (DECXRLM) and put back on exit. An answer lost on the
+  line holds pieces back only until the ones out could have been drawn. Frames wait for synchronized updates (mode
+  2026) to finish.
 - **Panes scroll in hardware**: when a rectangle of the screen moved up or down, such as one pane scrolling next to
   others, the renderer scrolls it inside left and right margins (DECLRMM, DECSLRM) with IND or RI and writes only the
   new lines. The rectangle is the maximum-sum subrectangle of per-cell gains, and a measured trial decides whether
