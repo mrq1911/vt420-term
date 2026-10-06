@@ -16,4 +16,5 @@ zellij=zellij
 if [[ -x "$here/zellij" ]]; then zellij="$here/zellij"; fi
 # the Help key runs zellij-vt420-help
 export PATH="$ROOT/bin:$PATH"
-exec "$ROOT/bin/vt420-term" "${adapter[@]}" -- "$zellij" --config "${ZELLIJ_VT420_CONFIG:-$ROOT/zellij/vt420.kdl}" "$@"
+# zellij's bar goes to the status line, so the panes get the whole screen
+exec "$ROOT/bin/vt420-term" --status-row "${adapter[@]}" -- "$zellij" --config "${ZELLIJ_VT420_CONFIG:-$ROOT/zellij/vt420.kdl}" "$@"

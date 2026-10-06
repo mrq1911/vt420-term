@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
-# The LK401 keys of zellij's VT420 profile, shown by F14 Help in a floating pane; any key closes it.
+# The LK401 keys of zellij's VT420 profile, shown by Help in a floating pane; any key closes it.
 printf '\033[?25l'
 cat <<'EOF'
- LK401 keys in zellij: F14, then the key               any key closes
+ LK401 keys in zellij: F14, then the key (Help: these)     any key closes
 
- Help     this sheet                 F11      Escape, back to normal mode
+ Help     Help to the program        F11      Escape, back to normal mode
  F6 F7    focus left, right          F14 F14  F14 itself, to the program
  F8       new pane                   F17 F18  previous, next tab
  F9       floating panes             F19      new tab

@@ -21,6 +21,8 @@ Program
       --term <name>         TERM for the program (default xterm-256color)
       --meta-key <key>      key that sends Alt with the next key: f6-f14, f17-f20, help, do or none (default f14)
       --show-keys           show each key's bytes, and what the program got, on the status line
+      --status-row          give the program a row more than the screen and show its last one on the status line,
+                            where a status bar such as zellij's leaves the whole screen to the rest
       --screensaver <mode>  auto, off, blank or progress: a dark screen after a spell without keys (auto is progress
                             on a DEC terminal, off on emulators)
       --screensaver-minutes <n>  minutes without a key before it starts (default 10)
@@ -46,6 +48,7 @@ interface Args {
 	term: string;
 	metaKey: string;
 	showKeys: boolean;
+	statusRow: boolean;
 	screensaver: SaverMode | "auto";
 	screensaverMinutes?: number;
 	command: string[];
@@ -71,6 +74,7 @@ function parseArgs(argv: readonly string[]): Args {
 		term: "xterm-256color",
 		metaKey: "f14",
 		showKeys: false,
+		statusRow: false,
 		screensaver: "auto",
 		command: [],
 	};
@@ -114,6 +118,9 @@ function parseArgs(argv: readonly string[]): Args {
 				break;
 			case "--show-keys":
 				args.showKeys = true;
+				break;
+			case "--status-row":
+				args.statusRow = true;
 				break;
 			case "--screensaver": {
 				const saver = value();
@@ -195,7 +202,7 @@ async function main(): Promise<void> {
 		child = spawn(command!, commandArgs, {
 			name: args.term,
 			cols: terminal.caps.columns,
-			rows: terminal.caps.rows,
+			rows: terminal.caps.rows + (args.statusRow && terminal.caps.statusLine ? 1 : 0),
 			cwd: process.cwd(),
 			// programs made for the VT420, pi-vt420 among them, learn what they really draw on
 			env: { ...process.env, TERM: args.term, VT420_TERM: terminal.caps.name },
@@ -223,6 +230,7 @@ async function main(): Promise<void> {
 	const session = new Session(terminal, child, {
 		metaKey: args.metaKey,
 		showKeys: args.showKeys,
+		statusRow: args.statusRow,
 		screensaver: args.screensaver,
 		screensaverMinutes: args.screensaverMinutes,
 	});

@@ -108,6 +108,22 @@ describe("vt420-term session", () => {
 		expect(requests()).toBe(3);
 	});
 
+	it("gives the program a row more and shows it on the status line, with statusRow", async () => {
+		const { terminal, child } = start({}, { statusRow: true });
+		child.print("\x1b[H\x1b[2J");
+		for (let row = 1; row <= 24; row++) child.print(`\x1b[${row};1Hrow ${row}`);
+		child.print("\x1b[25;10Hzellij bar\x1b[1;1H");
+		await settle(80);
+		// all 24 lines of the screen are the program's; its 25th is the status line
+		expect(terminal.row(0)).toBe("row 1");
+		expect(terminal.row(23)).toBe("row 24");
+		expect(terminal.emulator.statusText()).toBe("         zellij bar");
+		// a pending Alt still shows, over the start of the bar
+		terminal.type("\x1b[26~");
+		await settle(60);
+		expect(terminal.emulator.statusText()).toBe(" Alt     zellij bar");
+	});
+
 	it("shows each key and what the program got for it, with showKeys", async () => {
 		const { terminal, child } = start({}, { showKeys: true });
 		child.print("\x1b]0;pi\x07");

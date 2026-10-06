@@ -44,6 +44,8 @@ export interface SessionOptions {
 	syncTimeoutMs?: number;
 	/** Show the last key the terminal sent, and what the program got for it, on the status line. */
 	showKeys?: boolean;
+	/** The program gets a row more than the screen, and its last one shows on the status line, if there is one. */
+	statusRow?: boolean;
 	/** Screen saver after a spell without keys; "auto" is "progress" on a DEC terminal and "off" on emulators. */
 	screensaver?: SaverMode | "auto";
 	screensaverMinutes?: number;
@@ -127,6 +129,7 @@ export class Session {
 	private bell = false;
 	private closed = false;
 	private readonly showKeys: boolean;
+	private readonly statusRow: boolean;
 	private keyIn = "";
 	private keyOut = "";
 	private exited: Promise<number>;
@@ -146,6 +149,7 @@ export class Session {
 		this.frameMs = options.frameMs ?? 16;
 		this.showKeys = options.showKeys ?? false;
 		const caps = io.caps;
+		this.statusRow = (options.statusRow ?? false) && caps.statusLine;
 		const saver = options.screensaver ?? "auto";
 		this.saver = saver === "auto" ? (caps.unicode ? "off" : "progress") : saver;
 		this.saverMinutes = options.screensaverMinutes ?? SAVER_MINUTES;
@@ -163,7 +167,7 @@ export class Session {
 		});
 		this.screen = new ScreenMapper(this.charset);
 		this.renderer = rendererFor(caps);
-		this.term = new xterm.Terminal({ cols: caps.columns, rows: caps.rows, allowProposedApi: true, scrollback: 0 });
+		this.term = new xterm.Terminal({ cols: caps.columns, rows: this.rows(), allowProposedApi: true, scrollback: 0 });
 		// programs count emoji and East Asian wide characters as two columns, as Unicode 9 and later do
 		this.term.loadAddon(new Unicode11Addon());
 		this.term.unicode.activeVersion = "11";
@@ -287,12 +291,17 @@ export class Session {
 		// the answer to an earlier frame schedules this one
 		if (this.outbox.length > 0 || this.held || this.unanswered.length >= SYNC_WINDOW) return;
 		const caps = this.io.caps;
+		const lines = this.saving ? [] : this.screen.lines(this.term);
+		const cursor = this.saving ? undefined : this.screen.cursor(this.term, this.cursorVisible);
 		const frame: Frame = this.saving
 			? saverFrame(caps.rows, caps.columns, this.saverLine(), this.saverPlace, caps.statusLine)
 			: {
-					lines: this.screen.lines(this.term),
-					status: caps.statusLine ? this.statusCells() : undefined,
-					cursor: this.screen.cursor(this.term, this.cursorVisible),
+					lines: lines.slice(0, caps.rows),
+					status: caps.statusLine
+						? this.statusCells(this.statusRow ? lines[caps.rows]?.cells : undefined)
+						: undefined,
+					// the program's cursor on the row the status line shows is not drawn
+					cursor: cursor && cursor.row < caps.rows ? cursor : undefined,
 					scroll: { top: 0, bottom: caps.rows - 1 },
 				};
 		this.dirty = false;
@@ -422,17 +431,34 @@ export class Session {
 	}
 
 	/** The program's title on the right, as the footer sits in pi-vt420, and Alt while the meta key is pending. */
-	private statusCells(): number[] {
+	/** The pending Alt or the keys at the left; at the right the title, or the program's own row under it all. */
+	private statusCells(row?: readonly number[]): number[] {
 		const columns = this.io.caps.columns;
 		const keys = this.showKeys && this.keyIn ? ` ${this.keyIn} > ${this.keyOut || "nothing"}` : "";
 		const left = this.keys.metaPending ? this.charset.cells(" Alt", ATTR_BOLD) : keys ? this.charset.cells(keys) : [];
+		if (row) {
+			const base = [...row.slice(0, columns - 1), ...spaces(Math.max(0, columns - 1 - row.length))];
+			const shown = truncateCells(left, columns - 1, []);
+			return [
+				...shown,
+				...(shown.length > 0 ? [BLANK] : []),
+				...base.slice(shown.length + (shown.length > 0 ? 1 : 0)),
+				BLANK,
+			];
+		}
 		const room = Math.max(0, columns - 2 - left.length - 1);
 		const title = truncateCells(this.charset.cells(this.title), room, this.charset.cells("…"));
 		return [...left, ...spaces(columns - 1 - left.length - title.length), ...title, BLANK];
 	}
 
+	/** Rows the program has: the screen's, and one for the status line with `statusRow`. */
+	private rows(): number {
+		return this.io.caps.rows + (this.statusRow ? 1 : 0);
+	}
+
 	private resize(): void {
-		const { rows, columns } = this.io.caps;
+		const { columns } = this.io.caps;
+		const rows = this.rows();
 		this.term.resize(columns, rows);
 		this.child.resize(columns, rows);
 		this.renderer = rendererFor(this.io.caps);

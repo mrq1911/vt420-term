@@ -3,9 +3,10 @@
 // mode; Ctrl h is the BS that F12 sends, so move mode is m in pane mode; and the LK401's keys work with Alt, which
 // is the meta key (F14, then the key), leaving them to the programs otherwise: PF1-PF4 and Do (which vt420-term
 // sends as F5) switch to pane, tab, resize, scroll and session mode; F6/F7 move focus left and right, F8 opens a
-// pane, F9 shows floating panes, F10 makes the focused pane fullscreen; Help shows the keys; F17/F18 go to the
-// previous and next tab, F19 opens a tab and F20 turns pane frames on and off. Once in a mode they need no Alt,
-// and the mode's own key leaves it. vt420-term sends Help and F17-F20 as xterm does, as Shift with F3 and F5-F8.
+// pane, F9 shows floating panes, F10 makes the focused pane fullscreen; F17/F18 go to the previous and next tab,
+// F19 opens a tab and F20 turns pane frames on and off. Once in a mode they need no Alt, and the mode's own key
+// leaves it. Help alone shows the keys, and F14 Help sends Help on to the program. vt420-term sends Help and F17-F20
+// as xterm does, as Shift with F3 and F5-F8.
 
 keybinds clear-defaults=true {
     normal {
@@ -227,7 +228,7 @@ keybinds clear-defaults=true {
         bind "Alt F8" { NewPane; }
         bind "Alt F9" { ToggleFloatingPanes; }
         bind "Alt F10" { ToggleFocusFullscreen; }
-        bind "Alt Shift F3" {
+        bind "Shift F3" {
             Run "zellij-vt420-help" {
                 floating true
                 width "76"
@@ -239,6 +240,8 @@ keybinds clear-defaults=true {
             }
             SwitchToMode "Normal"
         }
+        // F14 Help gives the program Help, as xterm sends it: CSI 1;2R
+        bind "Alt Shift F3" { Write 27 91 49 59 50 82; }
         bind "Alt Shift F5" { GoToPreviousTab; }
         bind "Alt Shift F6" { GoToNextTab; }
         bind "Alt Shift F7" { NewTab; }

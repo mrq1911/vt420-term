@@ -75,7 +75,7 @@ is F14 and then the key, and stay the programs' otherwise, so pi-vt420, htop and
 | F8 | new pane |
 | F9 | show and hide floating panes |
 | F10 | fullscreen the focused pane |
-| Help | these keys, in a floating pane |
+| Help | Help, to the program (Help alone shows these keys in a floating pane) |
 | F17, F18 | previous and next tab |
 | F19, F20 | new tab, pane frames on and off |
 | a letter or an arrow | zellij's Alt bindings, such as Alt n or Alt and the arrows |
@@ -83,7 +83,8 @@ is F14 and then the key, and stay the programs' otherwise, so pi-vt420, htop and
 Do then q quits, and move mode is m in pane mode.
 
 It also uses the compact layout (one bar), `simplified_ui` (no Powerline glyphs), and turns off the mouse, startup tips
-and the kitty keyboard protocol. Zellij's title (the session and the focused pane) goes to the VT420's status line.
+and the kitty keyboard protocol. zellij gets a row more than the screen, and its bar, in that row, is shown on the
+VT420's status line (`vt420-term --status-row`), so the panes have all 24 lines; F14 shows Alt over its start.
 Set `ZELLIJ_VT420_CONFIG` to use a profile of your own.
 
 ## What reaches the terminal
