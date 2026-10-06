@@ -60,7 +60,7 @@ describe.skipIf(!recording)("vt420 against a recorded VT420", () => {
 						`${probe.name}: ${JSON.stringify(question)} ${JSON.stringify(theirs)}, vt420 ${JSON.stringify(ours)}`,
 					);
 			});
-			if (probe.then) term.feed(probe.then);
+			if (probe.after) term.feed(probe.after);
 		}
 		expect(differences).toEqual([]);
 	});

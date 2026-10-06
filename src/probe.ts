@@ -146,7 +146,7 @@ async function main(): Promise<void> {
 		write(probe.send);
 		const answers: Array<string | null> = [];
 		for (const question of probe.ask) answers.push(await ask(question));
-		if (probe.then) write(probe.then);
+		if (probe.after) write(probe.after);
 		cases.push({ name: probe.name, answers });
 	}
 	result.cases = cases;

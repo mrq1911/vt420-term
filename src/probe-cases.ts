@@ -10,7 +10,7 @@ export interface ProbeCase {
 	/** Asked one at a time, each answer recorded. */
 	ask: string[];
 	/** Sent after the questions, to put back what the case changed outside page memory. */
-	then?: string;
+	after?: string;
 }
 
 /** The known state each case starts from: a soft reset, no margins, jump scroll, autowrap, a clear page 1. */
@@ -87,7 +87,7 @@ export const CASES: readonly ProbeCase[] = [
 		name: "copy to another page",
 		send: "hello\x1b[1;1;1;5;1;3;3;2$v",
 		ask: [check(3, 3, 3, 7, 2)],
-		then: "\x1b[2 P\x1b[2J\x1b[1 P",
+		after: "\x1b[2 P\x1b[2J\x1b[1 P",
 	},
 	{
 		name: "reverse attributes over a stream of positions",
@@ -119,7 +119,7 @@ export const CASES: readonly ProbeCase[] = [
 	// resets and modes
 	{ name: "soft reset turns autowrap off", send: "\x1b[?7h\x1b[!p", ask: [mode(7)] },
 	{ name: "soft reset and the cursor's visibility", send: "\x1b[?25l\x1b[!p", ask: [mode(25)] },
-	{ name: "soft reset and smooth scroll", send: "\x1b[?4h\x1b[!p", ask: [mode(4)], then: "\x1b[?4l" },
+	{ name: "soft reset and smooth scroll", send: "\x1b[?4h\x1b[!p", ask: [mode(4)], after: "\x1b[?4l" },
 	{ name: "soft reset and insert mode", send: "\x1b[4h\x1b[!p", ask: ["\x1b[4$p"] },
 	{ name: "restore cursor with nothing saved", send: "\x1b[5;5H\x1b[1m\x1b[?6h\x1b8", ask: [CURSOR, "\x1b[1$w"] },
 	{ name: "screen alignment and the margins", send: "\x1b[5;10r\x1b#8", ask: ["\x1bP$qr\x1b\\", CURSOR, check(1, 1)] },
@@ -127,13 +127,13 @@ export const CASES: readonly ProbeCase[] = [
 		name: "48 lines on pages of 24",
 		send: "\x1b[48*|",
 		ask: ['\x1b["v', "\x1b[30;1H\x1b[?6n"],
-		then: "\x1b[24*|",
+		after: "\x1b[24*|",
 	},
 	{
 		name: "the status line, written past its end",
 		send: `\x1b[2$~\x1b[1$}${"x".repeat(85)}`,
 		ask: [CURSOR, "\x1b[6n"],
-		then: "\x1b[0$}",
+		after: "\x1b[0$}",
 	},
 	{ name: "a valid DECRQSS", send: "\x1b[1m", ask: ["\x1bP$qm\x1b\\"] },
 	{ name: "an invalid DECRQSS", send: "", ask: ["\x1bP$qz\x1b\\"] },
