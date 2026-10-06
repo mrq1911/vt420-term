@@ -96,7 +96,7 @@ describe("vt420-term session", () => {
 		expect(terminal.row(9)).toBe("line 9");
 	});
 
-	it("lets a 38400 baud line carry four pieces at once", async () => {
+	it("keeps two pieces out at 38400 baud too, which a VT420's input buffer holds", async () => {
 		const { terminal, child } = start({ deviceStatus: true, bytesPerSecond: 3840 });
 		await settle(40);
 		const requests = (): number => terminal.bytes.toString("latin1").split("\x1b[5n").length - 1;
@@ -105,7 +105,7 @@ describe("vt420-term session", () => {
 			child.print(`line ${line}\r\n`);
 			await settle(25);
 		}
-		expect(requests()).toBe(5);
+		expect(requests()).toBe(3);
 	});
 
 	it("shows each key and what the program got for it, with showKeys", async () => {

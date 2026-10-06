@@ -63,7 +63,10 @@ function visible(bytes: string): string {
 	return out.length > 24 ? `${out.slice(0, 23)}…` : out;
 }
 
-/** Pieces sent but not yet answered on a slow line, at most; whole frames on an emulator. */
+/**
+ * Pieces sent but not yet answered, at most; whole frames on an emulator. Two pieces and their requests are fewer bytes
+ * than a VT420's input buffer of 254 holds, so nothing is lost whether or not anything on the way honours its XOFF.
+ */
 const SYNC_WINDOW = 2;
 /** Line speed assumed for how long an answer may take when the real one is unknown: 9600 baud. */
 const SYNC_BYTES_PER_SECOND = 960;
@@ -77,9 +80,7 @@ const SYNC_PROBES_BLIND = 4;
  * A DEC terminal gets a frame in pieces of at most this many bytes, each answered before the window lets more out,
  * so a whole screen never runs ahead of it: flow control that comes back over ssh comes too late to stop one.
  */
-const SYNC_CHUNK = 160;
-/** On a faster line a DEC terminal gets as many pieces at once as a sixth of a second of the line takes, up to four. */
-const SYNC_WINDOW_SECONDS = 1 / 6;
+const SYNC_CHUNK = 96;
 
 /** Pieces joined into runs of at most `max` characters; a longer piece stays whole. */
 function chunks(parts: readonly string[], max: number): string[] {
@@ -284,7 +285,7 @@ export class Session {
 		}
 		this.heldSince = undefined;
 		// the answer to an earlier frame schedules this one
-		if (this.outbox.length > 0 || this.held || this.unanswered.length >= this.window()) return;
+		if (this.outbox.length > 0 || this.held || this.unanswered.length >= SYNC_WINDOW) return;
 		const caps = this.io.caps;
 		const frame: Frame = this.saving
 			? saverFrame(caps.rows, caps.columns, this.saverLine(), this.saverPlace, caps.statusLine)
@@ -311,17 +312,9 @@ export class Session {
 		this.pump();
 	}
 
-	/** Pieces out at most: two, or more on a fast line to a DEC terminal. */
-	private window(): number {
-		const caps = this.io.caps;
-		if (caps.unicode) return SYNC_WINDOW;
-		const pieces = Math.round(((caps.bytesPerSecond ?? 0) * SYNC_WINDOW_SECONDS) / SYNC_CHUNK);
-		return Math.min(2 * SYNC_WINDOW, Math.max(SYNC_WINDOW, pieces));
-	}
-
 	/** Send waiting pieces while the window has room. */
 	private pump(): void {
-		while (this.sync && !this.held && this.outbox.length > 0 && this.unanswered.length < this.window()) {
+		while (this.sync && !this.held && this.outbox.length > 0 && this.unanswered.length < SYNC_WINDOW) {
 			const bytes = this.outbox.shift()! + this.sync.bytes;
 			this.unanswered.push(bytes.length);
 			this.armAnswerTimer();

@@ -108,10 +108,10 @@ Set `ZELLIJ_VT420_CONFIG` to use a profile of your own.
 - **The latest screen, never the history**: frames are composed from the emulated screen, so a program that floods its
   output costs the line no more than the screen it ends up showing. Zellij's own output for its first five seconds is
   22 KB; the whole 17-second session in the GIF sent 2.7 KB to the terminal, under 1.5 s of a 19200 baud line.
-- **Pacing**: a frame goes to a DEC terminal in pieces of 160 bytes at most, each ending with a DSR request, whose
+- **Pacing**: a frame goes to a DEC terminal in pieces of 96 bytes at most, each ending with a DSR request, whose
   answer is four bytes (DA1 where the terminal ignores DSR), and a piece goes out only while at most one other is
-  unanswered (three on a 38400 baud line), so even a full screen never runs ahead of the VT420, with smooth scroll
-  set up or flow control that comes back over ssh too late to stop it. Limited transmit, which holds the terminal's
+  unanswered, fewer bytes than a VT420's input buffer holds, so even a full screen never runs ahead of the VT420,
+  with smooth scroll set up or flow control that comes back over ssh too late to stop it, or none at all. Limited transmit, which holds the terminal's
   answers to 150 characters a second, is lifted for the session (DECXRLM) and put back on exit. When answers stop
   coming, lost on the line or held up by Set-Up, Hold Screen or flow control, only a DA1 probe goes out, less often
   each time, until one is answered, so a held terminal never gets a backlog to wade through. Frames wait for
