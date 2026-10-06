@@ -2,7 +2,10 @@
  * vt420-term: run a program made for modern terminals, zellij first, on a DEC VT420.
  */
 
+import { tmpdir } from "node:os";
+import { fileURLToPath } from "node:url";
 import { spawn } from "node-pty";
+import { RelayedNative } from "./native-client.ts";
 import { isSaverMode, type SaverMode } from "./saver.ts";
 import { type NativeChild, Session } from "./session.ts";
 import type { SupplementalSet } from "./vt420/charset.ts";
@@ -28,6 +31,8 @@ Program
       --native-key <key>    key (f6-f20, help or do) that switches the terminal between the program and a native
                             session: your shell straight on the terminal, on a page of its own, which a program made
                             for the VT420 draws on as it would without vt420-term
+      --native-zellij       keep the native session in a tab of the zellij session the program is, so that it lasts
+                            as long as the session: detached and attached again, F19 finds the same shell
       --screensaver <mode>  auto, off, blank or progress: a dark screen after a spell without keys (auto is progress
                             on a DEC terminal, off on emulators)
       --screensaver-minutes <n>  minutes without a key before it starts (default 10)
@@ -53,6 +58,7 @@ interface Args {
 	term: string;
 	metaKey: string;
 	nativeKey?: string;
+	nativeZellij: boolean;
 	showKeys: boolean;
 	statusRow: boolean;
 	functionKeys: boolean;
@@ -81,6 +87,7 @@ function parseArgs(argv: readonly string[]): Args {
 		term: "xterm-256color",
 		metaKey: "f14",
 		showKeys: false,
+		nativeZellij: false,
 		statusRow: false,
 		functionKeys: false,
 		screensaver: "auto",
@@ -142,6 +149,9 @@ function parseArgs(argv: readonly string[]): Args {
 					"help",
 					"do",
 				]);
+				break;
+			case "--native-zellij":
+				args.nativeZellij = true;
 				break;
 			case "--show-keys":
 				args.showKeys = true;
@@ -260,19 +270,39 @@ async function main(): Promise<void> {
 	const session = new Session(terminal, child, {
 		metaKey: args.metaKey,
 		nativeKey: args.nativeKey,
-		spawnNative: () => {
-			// straight on the terminal: its own TERM, and nothing saying an emulator is in between
-			const env = { ...process.env };
-			for (const name of ["VT420_TERM", "LC_VT420_TERM"]) delete env[name];
-			// with no encoding node-pty passes Buffers, which its typings, written for strings, do not say
-			return spawn(process.env.SHELL || "/bin/sh", [], {
-				name: process.env.TERM || "vt420",
-				cols: terminal.caps.columns,
+		spawnNative: ({ title, bar }) => {
+			const shell = (): NativeChild => {
+				// straight on the terminal: its own TERM, and nothing saying an emulator is in between
+				const env = { ...process.env };
+				for (const name of ["VT420_TERM", "LC_VT420_TERM"]) delete env[name];
+				// with no encoding node-pty passes Buffers, which its typings, written for strings, do not say
+				return spawn(process.env.SHELL || "/bin/sh", [], {
+					name: process.env.TERM || "vt420",
+					cols: terminal.caps.columns,
+					rows: terminal.caps.rows,
+					cwd: process.cwd(),
+					env,
+					encoding: null,
+				}) as unknown as NativeChild;
+			};
+			// zellij calls its window "session | pane title", though not until something changes after an attach;
+			// its compact bar says "Zellij (session)" from the start
+			const zellijSession = args.nativeZellij
+				? title.split(" | ")[0]?.trim() || /Zellij \(([^)]+)\)/.exec(bar)?.[1]
+				: undefined;
+			if (!zellijSession) return shell();
+			return new RelayedNative({
+				zellij: args.command[0]!,
+				session: zellijSession,
+				host: [process.execPath, fileURLToPath(new URL("./native-host.ts", import.meta.url))],
+				term: process.env.TERM || "vt420",
+				columns: terminal.caps.columns,
 				rows: terminal.caps.rows,
 				cwd: process.cwd(),
-				env,
-				encoding: null,
-			}) as unknown as NativeChild;
+				runtimeDir: process.env.XDG_RUNTIME_DIR || tmpdir(),
+				uid: process.getuid?.() ?? 0,
+				fallback: shell,
+			});
 		},
 		showKeys: args.showKeys,
 		statusRow: args.statusRow,

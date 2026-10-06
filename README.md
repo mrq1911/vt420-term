@@ -178,6 +178,13 @@ and gets it back (DECRSTS, DECRSPS) when the session takes it again; the native 
 Only the status line, which the pages share, is drawn again: a resize has the native program draw. Set-Up needs more
 than one page (6 pages of 24 lines does).
 
+The native shell lives in a tab of the zellij session, named native (`vt420-term --native-zellij`), which only keeps it
+running: zellij never draws it. So it lasts as long as the session does. Detach, or lose the line, and F19 after
+attaching again finds the same shell and whatever runs in it, which draws itself again (what it wrote meanwhile is
+dropped, as dtach drops it). Its exit closes the tab, as killing the session ends it. vt420-term finds the session by
+the name zellij gives the window, or failing that by its bar; where it cannot, the native shell is its own, as
+before.
+
 It also uses the compact layout (one bar), `simplified_ui` (no Powerline glyphs), and turns off the mouse, startup tips
 and the kitty keyboard protocol. zellij gets a row more than the screen, and its bar, in that row, is shown on the
 VT420's status line (`vt420-term --status-row`), so the panes have all 24 lines; F14 shows Alt over its start.

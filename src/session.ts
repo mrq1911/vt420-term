@@ -70,7 +70,7 @@ export interface SessionOptions {
 	 * started by `spawnNative` on the first switch, draws on the terminal itself.
 	 */
 	nativeKey?: string;
-	spawnNative?: () => NativeChild;
+	spawnNative?: (program: { title: string; bar: string }) => NativeChild;
 	/** Screen saver after a spell without keys; "auto" is "progress" on a DEC terminal and "off" on emulators. */
 	screensaver?: SaverMode | "auto";
 	screensaverMinutes?: number;
@@ -175,7 +175,7 @@ export class Session {
 	private changedAt = Date.now();
 	/** Which side the terminal shows, and the switches between them. */
 	private shown: "main" | "toNative" | "native" | "toMain" = "main";
-	private readonly spawnNative: (() => NativeChild) | undefined;
+	private readonly spawnNative: ((program: { title: string; bar: string }) => NativeChild) | undefined;
 	private readonly nativeKeys: string[];
 	private native: NativeChild | undefined;
 	/** Native output that came while the program's side showed, to go out on the way back. */
@@ -586,7 +586,7 @@ export class Session {
 	}
 
 	private startNative(): void {
-		const native = this.spawnNative!();
+		const native = this.spawnNative!({ title: this.title, bar: this.statusRow ? this.statusRowText() : "" });
 		this.native = native;
 		native.onData((data) => {
 			if (this.shown === "native") this.io.writeBytes(data);

@@ -171,4 +171,51 @@ describe("vt420-term end to end", () => {
 		},
 		30_000,
 	);
+	it.skipIf(!hasZellij)(
+		"keeps the native session in a tab of the zellij session, the same shell after a detach",
+		async () => {
+			const session = `vt420-kept-${process.pid}`;
+			const env = { SHELL: "/bin/sh", PATH: `${process.cwd()}/bin:${process.env.PATH}` };
+			const adapter = ["--status-row", "--function-keys", "--native-key", "f19", "--native-zellij", "--"];
+			const zellij = ["zellij", "--config", "zellij/vt420.kdl"];
+			const tabs = (): string =>
+				execFileSync("zellij", ["--session", session, "action", "query-tab-names"], { encoding: "utf8" });
+			let vt420 = run([...adapter, ...zellij, "--session", session], env);
+			const screen = (): string => vt420.emulator.screen().join("\n");
+			try {
+				await settle(4000);
+				vt420.child.write("\x1b[33~");
+				await settle(3000);
+				vt420.child.write("MARK=kept; echo native-$TERM\r");
+				await settle(800);
+				expect(screen()).toContain("native-vt420");
+				// a tab of the session keeps it, with the focus left where it was
+				expect(tabs()).toContain("native");
+				// vt420-term goes, zellij detached with it, and comes back attached to the session
+				vt420.child.kill();
+				await vt420.exited;
+				vt420 = run([...adapter, ...zellij, "attach", session], env);
+				await settle(4000);
+				vt420.child.write("\x1b[33~");
+				await settle(2000);
+				vt420.child.write("echo mark-$MARK\r");
+				await settle(800);
+				expect(screen()).toContain("mark-kept");
+				// the shell ending closes its tab
+				vt420.child.write("exit\r");
+				await settle(1500);
+				expect(vt420.emulator.page).toBe(0);
+				expect(tabs()).not.toContain("native");
+			} finally {
+				vt420.child.kill();
+				try {
+					execFileSync("zellij", ["kill-session", session], { stdio: "ignore" });
+				} catch {}
+				try {
+					execFileSync("zellij", ["delete-session", session, "--force"], { stdio: "ignore" });
+				} catch {}
+			}
+		},
+		45_000,
+	);
 });
