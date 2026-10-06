@@ -104,6 +104,14 @@ XOFF at Set-Up's 64 or 128, at 220 and at every character that finds it full, XO
 glides, limited transmit, and a host that stops a few characters after XOFF or never, as one behind ssh. vt420-term's
 pacing is tested that way on a terminal set up as the factory sets it, smooth scroll and all.
 
+`vt420-probe`, run on a real VT420, checks this against the terminal itself: it puts the terminal through cases
+where the reference leaves room or emulators disagree, asks after each where the cursor went, the checksums of the
+screen (DECRQCRA) and the modes, records its reports and how long it takes to glide, scroll and answer, and writes
+them to a file (it leaves out DA3, the unit's serial number, and the answerback). Kept as
+`test/fixtures/vt420-probe.json`, the conformance test runs the same cases on vt420 and lists every answer that
+differs. Run it from a login on the terminal itself, with nothing on the screen to keep:
+`vt420-probe ~/vt420-probe.json`.
+
 The characters are VT323 (by Peter Hull, under the SIL Open Font License, in `src/web/fonts`), stretched a half dot
 as the terminal's are; line drawing and the large symbols of DEC Technical are drawn so they meet their neighbours.
 Bytes from 0x80 are what a VT420 takes them for, C1 controls and the supplemental set; `--utf8` decodes UTF-8 instead,

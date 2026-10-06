@@ -44,6 +44,7 @@ mkdir -p "$BIN"
 ln -sfn "$ROOT/bin/vt420-term" "$BIN/vt420-term"
 ln -sfn "$ROOT/bin/zellij-vt420" "$BIN/zellij-vt420"
 ln -sfn "$ROOT/bin/vt420" "$BIN/vt420"
+ln -sfn "$ROOT/bin/vt420-probe" "$BIN/vt420-probe"
 # for the Help key in a zellij session that was not started through zellij-vt420
 ln -sfn "$ROOT/bin/zellij-vt420-help" "$BIN/zellij-vt420-help"
 ln -sfn "$ROOT/install.sh" "$BIN/vt420-term-update"
