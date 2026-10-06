@@ -14,12 +14,21 @@ if [[ "${1:-}" != "--no-pull" ]] && git rev-parse --abbrev-ref '@{u}' >/dev/null
 	if [[ "$before" != "$after" ]]; then git log --oneline "$before..$after" | head -20; fi
 fi
 
-# the node this runs with is the one node-pty is built for, so the commands keep to it whatever node PATH finds later
-node="$(readlink -f "$(command -v node)")"
-if ! "$node" -e 'const [major, minor] = process.versions.node.split(".").map(Number); process.exit(major > 22 || (major === 22 && minor >= 18) ? 0 : 1)'; then
-	echo "vt420-term needs node 22.18 or newer, $node is $("$node" --version); run this with a newer one on PATH" >&2
-	exit 1
+# the node this runs with is the one node-pty is built for, so the commands keep to it whatever node PATH finds later;
+# where PATH finds one too old, the one of the last install
+recent() {
+	[[ -x "$1" ]] && "$1" -e 'const [major, minor] = process.versions.node.split(".").map(Number); process.exit(major > 22 || (major === 22 && minor >= 18) ? 0 : 1)'
+}
+node="$(readlink -f "$(command -v node || echo none)")"
+if ! recent "$node"; then
+	node="$(cat node_modules/.vt420-term-node 2>/dev/null || echo none)"
+	if ! recent "$node"; then
+		echo "vt420-term needs node 22.18 or newer on PATH" >&2
+		exit 1
+	fi
 fi
+# its npm, and node-gyp under it, build for it
+export PATH="$(dirname "$node"):$PATH"
 
 # lifecycle scripts stay off; node-pty is the one dependency whose native module has to be built
 stamp="node_modules/.vt420-term-lockfile"

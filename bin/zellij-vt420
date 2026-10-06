@@ -10,6 +10,10 @@ if [[ " $* " == *" -- "* ]]; then
 fi
 # a zellij started from inside another one would otherwise refuse to run
 unset ZELLIJ ZELLIJ_SESSION_NAME ZELLIJ_PANE_ID
+# a zellij beside this command comes first: where the system's is too old for the profile, one is put there
+here="$(cd "$(dirname "$0")" && pwd)"
+zellij=zellij
+if [[ -x "$here/zellij" ]]; then zellij="$here/zellij"; fi
 # the Help key runs zellij-vt420-help
 export PATH="$ROOT/bin:$PATH"
-exec "$ROOT/bin/vt420-term" "${adapter[@]}" -- zellij --config "${ZELLIJ_VT420_CONFIG:-$ROOT/zellij/vt420.kdl}" "$@"
+exec "$ROOT/bin/vt420-term" "${adapter[@]}" -- "$zellij" --config "${ZELLIJ_VT420_CONFIG:-$ROOT/zellij/vt420.kdl}" "$@"
