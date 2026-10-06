@@ -98,7 +98,13 @@ Ctrl+Shift+V pastes.
 
 The terminal is made to behave as the real one, faults included, so that pi-vt420 and vt420-term can be tested on
 it: a screen switched to 48 lines with pages of 24 shows blank lines under them, DECSTR turns autowrap off, and
-anything a VT420 does not know is ignored the way it ignores it. Tests can put it behind a serial line
+anything a VT420 does not know is ignored the way it ignores it. Where the reference and the terminal part, it goes
+with the terminal, a North American VT420 with firmware 1.4 that vt420-probe recorded: DECRQSS answers 1 for a
+setting it knows, DECRQM keeps the mode asked about in a byte, 0xA0 in a 94-character set is the error character, G2
+and G3 hold the user-preferred set as `<`, and DECRQCRA sums what the terminal keeps for each cell (the character's
+code in its font, nothing for an erased cell, 0x400 for underline, 0x800 for protected, 0x2000 for bold, 0x4000 for
+reverse, 0x8000 for blink). It takes its time as that terminal does, too: a character in 0.45 ms (slower than 38400
+baud brings them), a scroll in 13 ms, a glide in 94. Tests can put it behind a serial line
 (`src/emu/line.ts`) with the terminal's timing: characters ten bit times apart, the 254-character input buffer with
 XOFF at Set-Up's 64 or 128, at 220 and at every character that finds it full, XON at 32, input that waits while a line
 glides, limited transmit, and a host that stops a few characters after XOFF or never, as one behind ssh. vt420-term's

@@ -247,7 +247,8 @@ export class SetupScreen {
 						"Character sets",
 						["Multinational", "National"],
 						() => target.national,
-						(national) => setup({ national }),
+						// the national sets are the worldwide model's
+						(national) => setup(national ? { worldwide: true, national } : { national }),
 					),
 					choice(
 						"National set",
