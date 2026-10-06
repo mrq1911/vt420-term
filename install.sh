@@ -14,12 +14,21 @@ if [[ "${1:-}" != "--no-pull" ]] && git rev-parse --abbrev-ref '@{u}' >/dev/null
 	if [[ "$before" != "$after" ]]; then git log --oneline "$before..$after" | head -20; fi
 fi
 
+# the node this runs with is the one node-pty is built for, so the commands keep to it whatever node PATH finds later
+node="$(readlink -f "$(command -v node)")"
+if ! "$node" -e 'const [major, minor] = process.versions.node.split(".").map(Number); process.exit(major > 22 || (major === 22 && minor >= 18) ? 0 : 1)'; then
+	echo "vt420-term needs node 22.18 or newer, $node is $("$node" --version); run this with a newer one on PATH" >&2
+	exit 1
+fi
+
 # lifecycle scripts stay off; node-pty is the one dependency whose native module has to be built
 stamp="node_modules/.vt420-term-lockfile"
-if [[ ! -f "$stamp" ]] || ! cmp -s package-lock.json "$stamp"; then
+built="node_modules/.vt420-term-node"
+if [[ ! -f "$stamp" ]] || ! cmp -s package-lock.json "$stamp" || [[ "$(cat "$built" 2>/dev/null)" != "$node" ]]; then
 	npm ci --omit=dev --ignore-scripts --no-audit --no-fund
 	npm rebuild node-pty
 	cp package-lock.json "$stamp"
+	echo "$node" > "$built"
 fi
 
 mkdir -p "$BIN"
@@ -28,4 +37,4 @@ ln -sfn "$ROOT/bin/zellij-vt420" "$BIN/zellij-vt420"
 # for the Help key in a zellij session that was not started through zellij-vt420
 ln -sfn "$ROOT/bin/zellij-vt420-help" "$BIN/zellij-vt420-help"
 ln -sfn "$ROOT/install.sh" "$BIN/vt420-term-update"
-echo "vt420-term $(node "$ROOT/src/main.ts" --version) from $ROOT at $(git log -1 --format='%h %s' 2>/dev/null || echo 'an unversioned copy')"
+echo "vt420-term $("$node" "$ROOT/src/main.ts" --version) from $ROOT at $(git log -1 --format='%h %s' 2>/dev/null || echo 'an unversioned copy')"

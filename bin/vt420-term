@@ -2,4 +2,6 @@
 # vt420-term from this checkout; symlinks into PATH resolve back here
 set -euo pipefail
 ROOT="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)"
-exec node "$ROOT/src/main.ts" "$@"
+# the node the install built node-pty for
+node="$(cat "$ROOT/node_modules/.vt420-term-node" 2>/dev/null || echo node)"
+exec "$node" "$ROOT/src/main.ts" "$@"
