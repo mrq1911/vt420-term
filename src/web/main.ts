@@ -3,7 +3,7 @@
  */
 
 import { type KeyPress, keyBytes, pastedBytes } from "../emu/keyboard.ts";
-import { DEFAULT_SETUP, latin1Bytes, Vt420, type Vt420Setup } from "../emu/vt420.ts";
+import { FACTORY_SETUP, latin1Bytes, RECOMMENDED_SETUP, Vt420, type Vt420Setup } from "../emu/vt420.ts";
 import { mapKey } from "./keys.ts";
 import { type Glide, Renderer, type Selection } from "./render.ts";
 import { DEFAULT_DISPLAY, type DisplaySettings, SetupScreen } from "./setup.ts";
@@ -12,6 +12,9 @@ import { Sound } from "./sound.ts";
 /** Above this much waiting, the program is held; below the second it goes on. */
 const HOLD_BYTES = 64 * 1024;
 const RELEASE_BYTES = 16 * 1024;
+
+/** The Set-Up the page starts from until one is saved: the recommended one, with autowrap for a shell's long lines. */
+const PAGE_SETUP: Vt420Setup = { ...RECOMMENDED_SETUP, autowrap: true };
 
 const SETUP_KEY = "vt420.setup";
 const DISPLAY_KEY = "vt420.display";
@@ -49,7 +52,7 @@ class Page {
 		this.socket = socket;
 		this.display = { ...DEFAULT_DISPLAY, ...stored<DisplaySettings>(DISPLAY_KEY), ...display };
 		this.term = new Vt420({
-			setup: { ...DEFAULT_SETUP, ...stored<Vt420Setup>(SETUP_KEY), ...setup },
+			setup: { ...PAGE_SETUP, ...stored<Vt420Setup>(SETUP_KEY), ...setup },
 			utf8: this.display.utf8,
 			onResponse: (bytes) => {
 				if (!this.replaying) this.send(bytes);
@@ -330,8 +333,7 @@ class Page {
 				localStorage.setItem(DISPLAY_KEY, JSON.stringify(this.display));
 			},
 			recall: (factory) => {
-				const saved = factory ? {} : stored<Vt420Setup>(SETUP_KEY);
-				this.term.setup = { ...DEFAULT_SETUP, ...saved };
+				this.term.setup = factory ? { ...FACTORY_SETUP } : { ...PAGE_SETUP, ...stored<Vt420Setup>(SETUP_KEY) };
 				this.term.powerUp();
 				Object.assign(this.display, DEFAULT_DISPLAY, factory ? {} : stored<DisplaySettings>(DISPLAY_KEY));
 				this.renderer.setPhosphor(this.display.phosphor);

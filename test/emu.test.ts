@@ -56,7 +56,9 @@ describe("parser", () => {
 describe("writing", () => {
 	it("wraps at the last column only when the next character comes", () => {
 		const { term } = terminal({ setup: { columns: 80 } });
-		term.feed(`${"x".repeat(80)}`);
+		// the factory has autowrap off
+		expect(term.autowrap).toBe(false);
+		term.feed(`\x1b[?7h${"x".repeat(80)}`);
 		expect([term.row, term.col, term.pendingWrap]).toEqual([0, 79, true]);
 		term.feed("y");
 		expect(term.text(1)).toBe("y");
@@ -210,6 +212,14 @@ describe("pages and the status line", () => {
 		expect(term.status.attrs[0]).toBe(ATTR_BOLD);
 	});
 
+	it("leaves a screen taller than its pages blank under them, as a VT420 does", () => {
+		const { term } = terminal();
+		term.feed("\x1b[48*|\x1b[40;1Hx");
+		expect([term.screenLines, term.pageLines, term.visibleLines, term.row]).toEqual([48, 24, 24, 23]);
+		term.feed("\x1b[48t");
+		expect([term.pageLines, term.pageCount, term.visibleLines]).toEqual([48, 3, 48]);
+	});
+
 	it("keeps a page longer than the screen, panning to the cursor", () => {
 		const { term } = terminal();
 		term.feed("\x1b[72t\x1b[50;1Hdeep");
@@ -229,7 +239,7 @@ describe("reports", () => {
 		expect(ask(term, answers, "\x1b[5n\x1b[?26n\x1b[?15n")).toBe("\x1b[0n\x1b[?27;1;0;1n\x1b[?13n");
 		expect(ask(term, answers, "\x1b[3;5H\x1b[?6n")).toBe("\x1b[?3;5;1R");
 		expect(ask(term, answers, "\x1b[?7$p\x1b[4$p\x1b[1$p\x1b[?999$p")).toBe(
-			"\x1b[?7;1$y\x1b[4;2$y\x1b[1;4$y\x1b[?999;0$y",
+			"\x1b[?7;2$y\x1b[4;2$y\x1b[1;4$y\x1b[?999;0$y",
 		);
 		expect(ask(term, answers, '\x1b["v')).toBe('\x1b[24;80;1;1;1"w');
 		expect(ask(term, answers, "\x1b[&u")).toBe("\x1bP0!u%5\x1b\\");
@@ -263,13 +273,13 @@ describe("reports", () => {
 
 	it("restores the terminal state it reported", () => {
 		const { term, answers } = terminal();
-		term.feed("\x1b[?7l\x1b[4h\x1b[3;9r\x1b[2$~");
+		term.feed("\x1b[?7h\x1b[4h\x1b[3;9r\x1b[2$~");
 		const report = ask(term, answers, "\x1b[1$u");
 		expect(report).toMatch(/^\x1bP1\$s[0-9A-F]+\x1b\\$/);
 		term.feed("\x1b[!p\x1b[0$~");
-		expect([term.autowrap, term.statusType]).toEqual([true, 0]);
+		expect([term.autowrap, term.insertMode, term.statusType]).toEqual([false, false, 0]);
 		term.feed(report.replace("1$s", "1$p"));
-		expect([term.autowrap, term.insertMode, term.top, term.bottom, term.statusType]).toEqual([false, true, 2, 8, 2]);
+		expect([term.autowrap, term.insertMode, term.top, term.bottom, term.statusType]).toEqual([true, true, 2, 8, 2]);
 	});
 
 	it("checksums a rectangle", () => {

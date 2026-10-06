@@ -36,8 +36,10 @@ export interface EmuLine {
 export interface Vt420Setup {
 	/** 80 or 132; others for tests of a smaller screen. */
 	columns: number;
-	/** 24, 36 or 48. */
+	/** Lines on the screen: 24, 36 or 48. */
 	lines: number;
+	/** Lines a page has (24, 25, 36, 48, 72 or 144), so many pages of them as page memory holds. */
+	pageLines: number;
 	/** 0 none, 1 indicator, 2 host-writable. */
 	statusDisplay: number;
 	autowrap: boolean;
@@ -59,16 +61,20 @@ export interface Vt420Setup {
 	/** SRM reset: what is typed shows on the screen as well. */
 	localEcho: boolean;
 	transmitLimited: boolean;
+	/** Characters in the input buffer that make the terminal send XOFF (64 or 128), or 0 for no XOFF. */
+	xoff: number;
 	/** The DA1 answer: the terminal itself or one it poses as. */
 	alias: "vt420" | "vt320" | "vt220" | "vt100";
 }
 
-export const DEFAULT_SETUP: Vt420Setup = {
+/** The VT420 as it leaves the factory: the defaults of the programmer reference. */
+export const FACTORY_SETUP: Vt420Setup = {
 	columns: 80,
 	lines: 24,
+	pageLines: 24,
 	statusDisplay: 1,
-	autowrap: true,
-	smoothScroll: false,
+	autowrap: false,
+	smoothScroll: true,
 	newLine: false,
 	userPreferred: "dec",
 	level: 4,
@@ -81,8 +87,17 @@ export const DEFAULT_SETUP: Vt420Setup = {
 	national: false,
 	nationalSet: "british",
 	localEcho: false,
-	transmitLimited: true,
+	transmitLimited: false,
+	xoff: 64,
 	alias: "vt420",
+};
+
+/** The Set-Up pi-vt420 and vt420-term are made for, which their READMEs list: jump scroll, XOFF at 128, keys locked. */
+export const RECOMMENDED_SETUP: Vt420Setup = {
+	...FACTORY_SETUP,
+	smoothScroll: false,
+	udkLocked: true,
+	xoff: 128,
 };
 
 export interface Vt420Options {
@@ -228,7 +243,7 @@ export class Vt420 implements ParserHandler {
 
 	constructor(options: Vt420Options = {}) {
 		this.options = options;
-		this.setup = { ...DEFAULT_SETUP, ...options.setup };
+		this.setup = { ...FACTORY_SETUP, ...options.setup };
 		this.parser = new Parser(this, options.utf8 ?? false);
 		this.status = this.blankLine();
 		this.powerUp();
@@ -338,7 +353,7 @@ export class Vt420 implements ParserHandler {
 		this.eightBitControls = setup.eightBitControls && setup.level > 1;
 		this.columns = setup.columns;
 		this.screenLines = setup.lines;
-		this.pageLines = setup.lines;
+		this.pageLines = setup.pageLines;
 		this.allocatePages();
 		this.statusType = setup.statusDisplay;
 		this.status = this.blankLine();
@@ -380,6 +395,7 @@ export class Vt420 implements ParserHandler {
 		this.national = setup.national;
 		this.resetTabs();
 		this.softReset();
+		this.autowrap = setup.autowrap;
 		this.saved = undefined;
 		this.parser.reset();
 		this.options.onResize?.(this.columns, this.visibleLines);
@@ -394,6 +410,7 @@ export class Vt420 implements ParserHandler {
 		}
 		if (change.columns !== undefined) this.setColumns(change.columns === 132 ? 132 : 80, false);
 		if (change.lines !== undefined) this.setScreenLines(change.lines);
+		if (change.pageLines !== undefined) this.setPageLength(change.pageLines);
 		if (change.statusDisplay !== undefined && change.statusDisplay !== this.statusType) {
 			if (change.statusDisplay === 2) this.status = this.blankLine();
 			if (this.statusActive) this.leaveStatusLine();
@@ -420,7 +437,8 @@ export class Vt420 implements ParserHandler {
 		this.cursorVisible = true;
 		this.insertMode = false;
 		this.originMode = false;
-		this.autowrap = this.setup.autowrap;
+		// Table 13-1: no autowrap, whatever Set-Up has
+		this.autowrap = false;
 		this.keyboardLocked = false;
 		this.keypadApplication = false;
 		this.cursorKeysApplication = false;
@@ -1453,14 +1471,13 @@ export class Vt420 implements ParserHandler {
 	}
 
 	/**
-	 * DECSNLS: lines on the screen, the supported number at or above the one asked for. A page shorter than the
-	 * screen would leave its bottom blank, so the pages grow to the screen as Set-Up's arrangements do.
+	 * DECSNLS: lines on the screen, the supported number at or above the one asked for. The pages stay as long as
+	 * they were, so a screen taller than a page shows blank lines under it.
 	 */
 	private setScreenLines(lines: number): void {
 		const screen = lines <= 24 ? 24 : lines <= 36 ? 36 : 48;
 		if (screen === this.screenLines) return;
 		this.screenLines = screen;
-		if (this.pageLines < screen) this.setPageLength(screen);
 		this.windowTop = Math.min(this.windowTop, Math.max(0, this.pageLines - this.visibleLines));
 		this.couple();
 		this.options.onResize?.(this.columns, this.visibleLines);

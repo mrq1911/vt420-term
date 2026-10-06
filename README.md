@@ -92,7 +92,13 @@ from what it wrote, and `--keep` keeps it for the next window. See `vt420 --help
 jump or smooth scroll and its speed, the phosphor (white, green or amber), the operating level and 7- or 8-bit
 controls, the identity DA gives, the supplemental set, national mode, keys, keyclick, bell, local echo and a line
 speed. Changes act at once; Save keeps them in the browser, Recall and Default go back to the saved ones or the
-factory's. Dragging the mouse copies text, and Ctrl+Shift+V pastes.
+factory's. Until something is saved the page starts from the Set-Up pi-vt420's README lists (jump scroll, 6 pages
+of 24 lines, keys locked), with autowrap on for a shell's long lines. Dragging the mouse copies text, and
+Ctrl+Shift+V pastes.
+
+The terminal is made to behave as the real one, faults included, so that pi-vt420 and vt420-term can be tested on
+it: a screen switched to 48 lines with pages of 24 shows blank lines under them, DECSTR turns autowrap off, and
+anything a VT420 does not know is ignored the way it ignores it.
 
 The characters are VT323 (by Peter Hull, under the SIL Open Font License, in `src/web/fonts`), stretched a half dot
 as the terminal's are; line drawing and the large symbols of DEC Technical are drawn so they meet their neighbours.

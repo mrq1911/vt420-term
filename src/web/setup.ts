@@ -6,7 +6,7 @@
 
 import type { CharsetId } from "../emu/charsets.ts";
 import type { KeyPress } from "../emu/keyboard.ts";
-import { DEFAULT_SETUP, Vt420, type Vt420Setup } from "../emu/vt420.ts";
+import { RECOMMENDED_SETUP, Vt420, type Vt420Setup } from "../emu/vt420.ts";
 
 /** What the page keeps beside the terminal's own Set-Up. */
 export interface DisplaySettings {
@@ -79,7 +79,7 @@ const RATES = [4.4, 9, 17.5];
 
 export class SetupScreen {
 	/** The screen Set-Up draws on. */
-	readonly term = new Vt420({ setup: { ...DEFAULT_SETUP, statusDisplay: 1 } });
+	readonly term = new Vt420({ setup: { ...RECOMMENDED_SETUP, statusDisplay: 1 } });
 	private readonly host: SetupHost;
 	private readonly left: Array<{ title: string; items: Item[] }>;
 	private readonly right: Array<{ title: string; items: Item[] }>;
@@ -147,6 +147,19 @@ export class SetupScreen {
 						(lines) => setup({ lines }),
 					),
 					choice(
+						"Pages",
+						[
+							[24, "6 x 24"],
+							[25, "5 x 25"],
+							[36, "4 x 36"],
+							[48, "3 x 48"],
+							[72, "2 x 72"],
+							[144, "1 x 144"],
+						],
+						() => target.pageLines,
+						(pageLines) => setup({ pageLines }),
+					),
+					choice(
 						"Status line",
 						[
 							[0, "None"],
@@ -194,16 +207,6 @@ export class SetupScreen {
 						(on) => {
 							target.screenReverse = on;
 						},
-					),
-					choice(
-						"Phosphor",
-						[
-							["white", "White"],
-							["green", "Green"],
-							["amber", "Amber"],
-						],
-						() => display.phosphor,
-						(phosphor) => shown({ phosphor }),
 					),
 				],
 			},
@@ -335,6 +338,21 @@ export class SetupScreen {
 						["Unlimited", "Limited"],
 						() => target.transmitLimited,
 						(transmitLimited) => setup({ transmitLimited }),
+					),
+				],
+			},
+			{
+				title: "Look",
+				items: [
+					choice(
+						"Phosphor",
+						[
+							["white", "White"],
+							["green", "Green"],
+							["amber", "Amber"],
+						],
+						() => display.phosphor,
+						(phosphor) => shown({ phosphor }),
 					),
 				],
 			},
