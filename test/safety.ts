@@ -16,7 +16,8 @@ const ESC_ALLOWED = new Set(["D", "M", "7", "8", "=", ">", "n", "o", "|", "}", "
 const SCS_ALLOWED = new Set(["(B", ")0", ")B", "*>", "*B", "*%5", "+%5", "+B", "/A", " F", "#3", "#4", "#5", "#6"]);
 const SGR_ALLOWED = new Set([0, 1, 4, 5, 7, 22, 24, 25, 27]);
 const ANSI_MODES = new Set([4, 12, 20]);
-const DEC_MODES = new Set([1, 5, 6, 7, 25, 66, 69]);
+// smooth scroll (4) and transmit limiting (73) only go back to what the terminal had
+const DEC_MODES = new Set([1, 4, 5, 6, 7, 25, 66, 69, 73]);
 
 function csiViolation(sequence: string): string | undefined {
 	const final = sequence.at(-1)!;

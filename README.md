@@ -18,9 +18,9 @@ git clone https://github.com/mrq1911/vt420-term.git ~/.local/share/vt420-term
 ```
 
 `install.sh` installs the dependencies without lifecycle scripts, builds node-pty's native module (a C++ compiler and
-Python are needed), and links `vt420-term`, `zellij-vt420`, its key sheet `zellij-vt420-help` and `vt420-term-update`
-into `~/.local/bin`. Node 22.18 or
-later runs the TypeScript directly. `vt420-term-update` pulls and runs the same steps again.
+Python are needed), and links `vt420-term`, `zellij-vt420`, its key sheet `zellij-vt420-help`, `vt420` (below) and
+`vt420-term-update` into `~/.local/bin`. Node 22.18 or later runs the TypeScript directly. `vt420-term-update` pulls
+and runs the same steps again.
 
 ## Use
 
@@ -40,6 +40,65 @@ ones made for the VT420, pi-vt420 among them, know what is at the end of the lin
 over ssh to a server with `AcceptEnv LC_VT420_TERM` (clients usually send `LC_*`). A window title that starts with
 π, which pi-vt420 sets to its footer, shows on the status line without the π, and with `--status-row` over the
 program's row while that row says NORMAL, so pi in a zellij pane has the status line as on the VT420 itself.
+
+## vt420: a VT420 in a browser window
+
+`vt420` is the terminal itself, for when the real one is not at hand: your shell, or `vt420 -- program`, runs in a
+pseudo-terminal with `TERM=vt420`, and a local page is the VT420 it talks to. It does what the programmer reference
+(EK-VT420-RM) describes for one session:
+
+- **Screen**: 80 or 132 columns and 24, 36 or 48 lines; six pages of page memory, with NP, PP, PPA, PPR and PPB,
+  panning, and pages longer than the screen (DECSLPP); the indicator and host-writable status lines; double-width
+  and double-height lines; smooth scroll that glides a scan line at a time while what follows waits, as on the
+  terminal; scrolling margins on all four sides.
+- **Editing**: insert and delete of characters, lines and columns, DECBI and DECFI, selective erase (DECSCA), and the
+  rectangles: DECCRA across pages, DECFRA, DECERA, DECSERA, DECCARA and DECRARA with DECSACE.
+- **Characters**: ASCII, DEC Special Graphics, DEC Technical, DEC Supplemental, ISO Latin-1 and the eleven national
+  replacement sets, locking and single shifts, soft fonts (DECDLD), 7- and 8-bit controls.
+- **The rest**: user-defined keys (DECUDK), macros (DECDMAC, DECINVM), VT52 and VT100 modes, every mode DECRQM asks
+  about, and the reports: DA (all three), DSR in its forms, DECRQSS, DECRQM, DECCIR and DECTABSR with DECRSPS, the
+  terminal state report with DECRSTS, DECRQCRA, DECRQDE and DECRQUPSS.
+
+pi-vt420 finds a VT420 in it and draws natively; vt420-term, and with it zellij, runs in it as on the real terminal.
+vt420-term's own tests draw on the same terminal.
+
+```bash
+vt420                       # your shell
+vt420 -- pi                 # pi-vt420
+vt420 --baud 19200 -- top   # no faster than a serial line
+vt420 -- zellij-vt420       # zellij through vt420-term
+```
+
+It opens an app window of Chromium, Chrome, Brave or Edge, or else the default browser; `--no-open` prints the
+address instead. The server listens on 127.0.0.1 only, and the page's WebSocket needs the token in that address.
+Closing the window hangs the program up 15 seconds later; a reload in the meantime finds it again, its screen drawn
+from what it wrote, and `--keep` keeps it for the next window. See `vt420 --help`.
+
+| PC key | VT420 key |
+| --- | --- |
+| F1-F4, or Num Lock, keypad / * - | PF1-PF4 |
+| F6-F12 | F6-F12 |
+| Shift or Alt with F1-F10 | F11, F12, F13, F14, Help, Do, F17, F18, F19, F20 |
+| Ctrl with an F key | that key with Shift: a user-defined key |
+| Insert, Delete, Home, End, Page Up, Page Down | Insert Here, Remove, Find, Select, Prev Screen, Next Screen |
+| keypad +, Alt with keypad - | the keypad's comma and minus |
+| Escape | ESC, which the LK401 does not have |
+| Alt with a key | ESC and the key (Set-Up can turn it off) |
+| Ctrl+F1, Scroll Lock, Pause | Hold Screen |
+| Ctrl+F3 | Set-Up |
+| Alt+Enter | full screen, where Ctrl+W and the like reach the program too |
+
+**Set-Up** (Ctrl+F3) is a screen of its own, drawn by the terminal: columns and lines, the status line, the cursor,
+jump or smooth scroll and its speed, the phosphor (white, green or amber), the operating level and 7- or 8-bit
+controls, the identity DA gives, the supplemental set, national mode, keys, keyclick, bell, local echo and a line
+speed. Changes act at once; Save keeps them in the browser, Recall and Default go back to the saved ones or the
+factory's. Dragging the mouse copies text, and Ctrl+Shift+V pastes.
+
+The characters are VT323 (by Peter Hull, under the SIL Open Font License, in `src/web/fonts`), stretched a half dot
+as the terminal's are; line drawing and the large symbols of DEC Technical are drawn so they meet their neighbours.
+Bytes from 0x80 are what a VT420 takes them for, C1 controls and the supplemental set; `--utf8` decodes UTF-8 instead,
+for programs that know nothing else. Not there: two sessions and their windows, the printer port, PC TERM mode,
+key position reports and display controls mode.
 
 ## Screen saver
 
@@ -114,8 +173,8 @@ Set `ZELLIJ_VT420_CONFIG` to use a profile of your own.
   status line, rectangle fills; nothing else. OSC, DCS, APC and graphics from the program stop at the emulator, which
   also answers its queries (DA, cursor position, modes); the window title goes to the status line.
 - **Proof**: the tests run hostile output (raw colour codes, emoji, CJK, OSC titles ended by BEL, DCS and APC strings,
-  random binary) and real zellij sessions through the adapter into a strict VT420 emulator, and check every byte sent
-  against that repertoire.
+  random binary) and real zellij sessions through the adapter into vt420's VT420, and check every byte sent against
+  the repertoire above.
 
 ## How it draws
 
@@ -161,4 +220,6 @@ npm test         # vitest; the zellij test runs when zellij is installed
 
 `src/vt420` started as pi-vt420's terminal layer, character sets and renderer, in
 [mrq1911/pi](https://github.com/mrq1911/pi/tree/vt420/packages/coding-agent/src/experimental/vt420); here the renderer
-also scrolls rectangles, and the terminal layer hands over raw input. MIT licensed.
+also scrolls rectangles, and the terminal layer hands over raw input. `src/emu` is vt420's terminal, which runs in the
+browser and in the tests alike, and `src/web` its page; the server strips the TypeScript's types as it serves it, so
+there is no build. MIT licensed; the VT323 font is under the SIL Open Font License.
