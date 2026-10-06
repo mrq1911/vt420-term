@@ -3,7 +3,15 @@
  * terminal or a modern emulator, and helpers for assertions.
  */
 
-import { ATTR_BLINK, ATTR_BOLD, ATTR_REVERSE, ATTR_UNDERLINE, RECOMMENDED_SETUP, Vt420 } from "../src/emu/vt420.ts";
+import {
+	ATTR_BLINK,
+	ATTR_BOLD,
+	ATTR_REVERSE,
+	ATTR_UNDERLINE,
+	RECOMMENDED_SETUP,
+	Vt420,
+	type Vt420Setup,
+} from "../src/emu/vt420.ts";
 import { cellCode, cellSet, type Line } from "../src/vt420/cells.ts";
 import { cellToUnicode, type SupplementalSet } from "../src/vt420/charset.ts";
 
@@ -39,6 +47,8 @@ export interface EmulatorOptions {
 	lineAttributes?: boolean;
 	/** DECXRLM as Set-Up left it: true for limited transmit; undefined leaves the mode unknown to DECRQM. */
 	transmitLimited?: boolean;
+	/** Set-Up otherwise than the recommended one, such as the factory's. */
+	setup?: Partial<Vt420Setup>;
 }
 
 export class Vt420Emulator extends Vt420 {
@@ -51,6 +61,7 @@ export class Vt420Emulator extends Vt420 {
 				columns: options.columns ?? 80,
 				lines: options.rows ?? 24,
 				pageLines: options.rows ?? 24,
+				...options.setup,
 				statusDisplay: options.statusType ?? 1,
 				userPreferred: options.userPreferredSupplemental ?? "dec",
 				transmitLimited: options.transmitLimited ?? false,

@@ -1,3 +1,4 @@
+import { type LineOptions, SerialLine } from "../src/emu/line.ts";
 import type { NativeChild, SessionChild, SessionTerminal } from "../src/session.ts";
 import { charsetDesignations } from "../src/vt420/sequences.ts";
 import type { TerminalCapabilities } from "../src/vt420/terminal.ts";
@@ -18,10 +19,14 @@ export const VT420: TerminalCapabilities = {
 	leftRightMargins: true,
 };
 
-/** The session's terminal side played by the emulator, which answers DA1 the way a VT420 does. */
+/**
+ * The session's terminal side played by the emulator, which answers DA1 the way a VT420 does; over a serial line
+ * when given one, with its speed, input buffer and flow control.
+ */
 export class EmulatedTerminal implements SessionTerminal {
 	readonly caps: TerminalCapabilities;
 	readonly emulator: Vt420Emulator;
+	readonly line: SerialLine | undefined;
 	readonly sent: Buffer[] = [];
 	backlogMs = 0;
 	/** Hold the terminal's answers, as a slow line would, until `release()`. */
@@ -30,20 +35,27 @@ export class EmulatedTerminal implements SessionTerminal {
 	private resizeHandler: (() => void) | undefined;
 	private held: Buffer[] = [];
 
-	constructor(caps: Partial<TerminalCapabilities> = {}, options: EmulatorOptions = {}) {
+	constructor(
+		caps: Partial<TerminalCapabilities> = {},
+		options: EmulatorOptions = {},
+		line?: Omit<LineOptions, "onHost" | "onFlow">,
+	) {
 		this.caps = { ...VT420, ...caps };
+		const answer = (bytes: string): void => {
+			const chunk = Buffer.from(bytes, "latin1");
+			if (this.holdAnswers) this.held.push(chunk);
+			else this.listener?.(chunk);
+		};
+		this.line = line ? new SerialLine({ ...line, onHost: answer }) : undefined;
 		this.emulator = new Vt420Emulator({
 			rows: this.caps.rows,
 			columns: this.caps.columns,
 			statusType: this.caps.statusLine ? 2 : 1,
 			utf8: this.caps.unicode,
 			...options,
-			onResponse: (bytes) => {
-				const chunk = Buffer.from(bytes, "latin1");
-				if (this.holdAnswers) this.held.push(chunk);
-				else this.listener?.(chunk);
-			},
+			onResponse: (bytes) => (this.line ? this.line.answer(bytes) : answer(bytes)),
 		});
+		this.line?.attach(this.emulator);
 		// the designations the terminal layer sets up before a session starts
 		this.emulator.feed(charsetDesignations(this.caps));
 	}
@@ -51,12 +63,14 @@ export class EmulatedTerminal implements SessionTerminal {
 	write(bytes: string): void {
 		const chunk = Buffer.from(bytes, this.caps.unicode ? "utf8" : "latin1");
 		this.sent.push(chunk);
-		this.emulator.feed(chunk);
+		if (this.line) this.line.write(chunk);
+		else this.emulator.feed(chunk);
 	}
 
 	writeBytes(chunk: Uint8Array): void {
 		this.sent.push(Buffer.from(chunk));
-		this.emulator.feed(Buffer.from(chunk));
+		if (this.line) this.line.write(chunk);
+		else this.emulator.feed(Buffer.from(chunk));
 	}
 
 	restoreModes(): void {

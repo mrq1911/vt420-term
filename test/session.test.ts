@@ -18,6 +18,30 @@ afterEach(() => {
 });
 
 describe("vt420-term session", () => {
+	it("never overflows a factory-set VT420 that glides, behind a host that ignores its XOFF", async () => {
+		// smooth scroll and XOFF at 64 as the factory sets them; the host is ssh's tty, which keeps sending
+		const terminal = new EmulatedTerminal(
+			{},
+			{ setup: { smoothScroll: true, xoff: 64 } },
+			{ baud: 38400, glideMs: 40 },
+		);
+		const child = new FakeChild();
+		const session = new Session(terminal, child, {});
+		sessions.push(session);
+		// a log that grows a line or two at a time scrolls in hardware, each line a glide
+		for (let burst = 0; burst < 48; burst++) {
+			child.print(`line ${burst * 2}\r\nline ${burst * 2 + 1}\r\n`);
+			await settle(15);
+		}
+		for (let wait = 0; wait < 100 && (terminal.line!.pending > 0 || terminal.row(22) !== "line 95"); wait++) {
+			await settle(50);
+		}
+		expect(terminal.row(22)).toBe("line 95");
+		expect(terminal.line!.stats.glides).toBeGreaterThan(10);
+		expect(terminal.line!.stats.lost).toBe(0);
+		expect(terminal.line!.stats.peak).toBeLessThan(254);
+	}, 20_000);
+
 	it("draws what the program prints with nothing the VT420 cannot take", async () => {
 		const { terminal, child, session } = start();
 		child.print(

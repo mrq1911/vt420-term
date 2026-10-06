@@ -98,7 +98,11 @@ Ctrl+Shift+V pastes.
 
 The terminal is made to behave as the real one, faults included, so that pi-vt420 and vt420-term can be tested on
 it: a screen switched to 48 lines with pages of 24 shows blank lines under them, DECSTR turns autowrap off, and
-anything a VT420 does not know is ignored the way it ignores it.
+anything a VT420 does not know is ignored the way it ignores it. Tests can put it behind a serial line
+(`src/emu/line.ts`) with the terminal's timing: characters ten bit times apart, the 254-character input buffer with
+XOFF at Set-Up's 64 or 128, at 220 and at every character that finds it full, XON at 32, input that waits while a line
+glides, limited transmit, and a host that stops a few characters after XOFF or never, as one behind ssh. vt420-term's
+pacing is tested that way on a terminal set up as the factory sets it, smooth scroll and all.
 
 The characters are VT323 (by Peter Hull, under the SIL Open Font License, in `src/web/fonts`), stretched a half dot
 as the terminal's are; line drawing and the large symbols of DEC Technical are drawn so they meet their neighbours.
