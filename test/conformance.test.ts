@@ -37,13 +37,27 @@ function setupOf(recording: Recording): Partial<Vt420Setup> {
 		transmitLimited: defined(mode("?73"), FACTORY_SETUP.transmitLimited),
 		userPreferred: /A/.test(recording.reports["\x1b[&u"] ?? "") ? "latin1" : "dec",
 		udkLocked: recording.reports["\x1b[?25n"]?.includes("?21n") ?? false,
+		worldwide: /\?6\d;(\d+;)*9;/.test(recording.reports["\x1b[c"] ?? ""),
 	};
 }
+
+/** A VT420 set up as the recorded one, with its tab stops and attribute extent, which a soft reset keeps. */
+function terminalOf(recording: Recording, onResponse: (bytes: string) => void): Vt420 {
+	const term = new Vt420({ setup: setupOf(recording), onResponse });
+	const tabs = /^\x1bP2\$u(.*)\x1b\\$/.exec(recording.reports["\x1b[2$w"] ?? "")?.[1];
+	if (tabs !== undefined) term.feed(`\x1bP2$t${tabs}\x1b\\`);
+	const extent = /^\x1bP[01]\$r(\d)\*x/.exec(recording.settings["*x"] ?? "")?.[1];
+	if (extent !== undefined) term.feed(`\x1b[${extent}*x`);
+	return term;
+}
+
+/** Reports that tell what was on the screen and the line before the probe, not how the terminal works. */
+const HISTORY = new Set(["\x1b[1$u", "\x1b[1$w", "\x1b[?75n"]);
 
 describe.skipIf(!recording)("vt420 against a recorded VT420", () => {
 	it("does what the VT420 did, case by case", () => {
 		const answers: string[] = [];
-		const term = new Vt420({ setup: setupOf(recording!), onResponse: (bytes) => answers.push(bytes) });
+		const term = terminalOf(recording!, (bytes) => answers.push(bytes));
 		const differences: string[] = [];
 		for (const recorded of recording!.cases) {
 			const probe = CASES.find((candidate) => candidate.name === recorded.name);
@@ -67,11 +81,10 @@ describe.skipIf(!recording)("vt420 against a recorded VT420", () => {
 
 	it("answers the reports as the VT420 did", () => {
 		const answers: string[] = [];
-		const term = new Vt420({ setup: setupOf(recording!), onResponse: (bytes) => answers.push(bytes) });
+		const term = terminalOf(recording!, (bytes) => answers.push(bytes));
 		const differences: string[] = [];
-		// DECTSR's format is the terminal's own
 		for (const [report, theirs] of Object.entries(recording!.reports)) {
-			if (report === "\x1b[1$u") continue;
+			if (HISTORY.has(report)) continue;
 			answers.length = 0;
 			term.feed(report);
 			const ours = answers.join("") || null;

@@ -3,6 +3,7 @@ import { keyBytes, pastedBytes } from "../src/emu/keyboard.ts";
 import {
 	ATTR_BLINK,
 	ATTR_BOLD,
+	ATTR_FLAGS,
 	ATTR_REVERSE,
 	ATTR_UNDERLINE,
 	LINE_DOUBLE_WIDTH,
@@ -81,7 +82,7 @@ describe("writing", () => {
 	});
 
 	it("uses a national set in national mode only", () => {
-		const { term } = terminal({ setup: { nationalSet: "german" } });
+		const { term } = terminal({ setup: { nationalSet: "german", worldwide: true } });
 		term.feed("\x1b(K[]");
 		expect(term.text(0)).toBe("[]");
 		term.feed("\x1b[?42h\x1b(K\r[]{}~");
@@ -209,7 +210,7 @@ describe("pages and the status line", () => {
 		expect(term.statusText()).toBe("status");
 		expect(term.text(0)).toBe("mainx");
 		expect(term.attrsAt(0, 4)).toBe(0);
-		expect(term.status.attrs[0]).toBe(ATTR_BOLD);
+		expect(term.status.attrs[0]! & ATTR_FLAGS).toBe(ATTR_BOLD);
 	});
 
 	it("leaves a screen taller than its pages blank under them, as a VT420 does", () => {
@@ -233,36 +234,38 @@ describe("pages and the status line", () => {
 describe("reports", () => {
 	it("answers as a VT420 does", () => {
 		const { term, answers } = terminal();
-		expect(ask(term, answers, "\x1b[c")).toBe("\x1b[?64;1;2;6;7;8;9;15;18;19;21c");
-		expect(ask(term, answers, "\x1b[>c")).toBe("\x1b[>41;10;0c");
+		// the North American model, firmware 1.4, as recorded
+		expect(ask(term, answers, "\x1b[c")).toBe("\x1b[?64;1;2;6;7;8;15;18;19;21c");
+		expect(ask(term, answers, "\x1b[>c")).toBe("\x1b[>41;14;0c");
 		expect(ask(term, answers, "\x1b[=c")).toBe("\x1bP!|00000000\x1b\\");
 		expect(ask(term, answers, "\x1b[5n\x1b[?26n\x1b[?15n")).toBe("\x1b[0n\x1b[?27;1;0;1n\x1b[?13n");
 		expect(ask(term, answers, "\x1b[3;5H\x1b[?6n")).toBe("\x1b[?3;5;1R");
 		expect(ask(term, answers, "\x1b[?7$p\x1b[4$p\x1b[1$p\x1b[?999$p")).toBe(
-			"\x1b[?7;2$y\x1b[4;2$y\x1b[1;4$y\x1b[?999;0$y",
+			"\x1b[?7;2$y\x1b[4;2$y\x1b[1;4$y\x1b[?255;0$y",
 		);
 		expect(ask(term, answers, '\x1b["v')).toBe('\x1b[24;80;1;1;1"w');
 		expect(ask(term, answers, "\x1b[&u")).toBe("\x1bP0!u%5\x1b\\");
 	});
 
-	it("reports settings with DECRQSS", () => {
+	it("reports settings with DECRQSS, 1 for valid as the VT420 has it", () => {
 		const { term, answers } = terminal();
 		term.feed("\x1b[1;5m\x1b[3;20r");
-		expect(ask(term, answers, "\x1bP$qm\x1b\\")).toBe("\x1bP0$r0;1;5m\x1b\\");
-		expect(ask(term, answers, "\x1bP$qr\x1b\\")).toBe("\x1bP0$r3;20r\x1b\\");
-		expect(ask(term, answers, '\x1bP$q"p\x1b\\')).toBe('\x1bP0$r64;1"p\x1b\\');
-		expect(ask(term, answers, "\x1bP$qz\x1b\\")).toBe("\x1bP1$r\x1b\\");
+		expect(ask(term, answers, "\x1bP$qm\x1b\\")).toBe("\x1bP1$r0;1;5m\x1b\\");
+		expect(ask(term, answers, "\x1bP$qr\x1b\\")).toBe("\x1bP1$r3;20r\x1b\\");
+		expect(ask(term, answers, '\x1bP$q"p\x1b\\')).toBe('\x1bP1$r64;1"p\x1b\\');
+		expect(ask(term, answers, "\x1bP$q*}\x1b\\")).toBe("\x1bP1$r1;1;2;2;3;1;4;2*}\x1b\\");
+		expect(ask(term, answers, "\x1bP$qz\x1b\\")).toBe("\x1bP0$r\x1b\\");
 	});
 
 	it("restores the cursor information and tab stops it reported", () => {
 		const { term, answers } = terminal();
 		term.feed("\x1b[2 P\x1b[5;7H\x1b[1;4m\x1b)0\x1b*>\x1b~\x1b[?6h\x1b[5;7H");
 		const cir = ask(term, answers, "\x1b[1$w");
-		expect(cir).toBe("\x1bP1$u5;7;2;C;@;A;0;1;@;B0>%5\x1b\\");
+		expect(cir).toBe("\x1bP1$u5;7;2;C;@;A;0;1;@;B0><\x1b\\");
 		term.feed("\x1b[1 P\x1b[m\x1b(B\x1b)B\x1b}\x1b[?6l\x1b[H");
 		term.feed(cir.replace("$u", "$t"));
 		expect([term.page, term.row, term.col, term.sgr, term.gr, term.originMode]).toEqual([1, 4, 6, 3, 1, true]);
-		expect(term.designations).toEqual(["ascii", "graphics", "technical", "dec-supplemental"]);
+		expect(term.designations).toEqual(["ascii", "graphics", "technical", "user-preferred"]);
 		const tabs = ask(term, answers, "\x1b[3g\x1b[1;5H\x1bH\x1b[1;30H\x1bH\x1b[2$w");
 		expect(tabs).toBe("\x1bP2$u5/30\x1b\\");
 		term.feed("\x1b[3g");
@@ -275,7 +278,7 @@ describe("reports", () => {
 		const { term, answers } = terminal();
 		term.feed("\x1b[?7h\x1b[4h\x1b[3;9r\x1b[2$~");
 		const report = ask(term, answers, "\x1b[1$u");
-		expect(report).toMatch(/^\x1bP1\$s[0-9A-F]+\x1b\\$/);
+		expect(report).toMatch(/^\x1bP1\$s[@-O]+\x1b\\$/);
 		term.feed("\x1b[!p\x1b[0$~");
 		expect([term.autowrap, term.insertMode, term.statusType]).toEqual([false, false, 0]);
 		term.feed(report.replace("1$s", "1$p"));
@@ -284,9 +287,9 @@ describe("reports", () => {
 
 	it("checksums a rectangle", () => {
 		const { term, answers } = terminal();
-		term.feed("AB");
-		// 0x41 + 0x42 + 78 spaces, negated
-		const sum = (-(0x41 + 0x42 + 78 * 0x20) & 0xffff).toString(16).toUpperCase().padStart(4, "0");
+		term.feed("AB\x1b[1m ");
+		// A and B, a bold space (0x20 and 0x2000), and 77 erased cells that count nothing, negated
+		const sum = (-(0x41 + 0x42 + 0x2020) & 0xffff).toString(16).toUpperCase().padStart(4, "0");
 		expect(ask(term, answers, "\x1b[7;1;1;1;1;80*y")).toBe(`\x1bP7!~${sum}\x1b\\`);
 	});
 

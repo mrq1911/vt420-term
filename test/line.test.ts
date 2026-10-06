@@ -33,8 +33,10 @@ describe("serial line", () => {
 	it("answers at the line's speed, and at 165 characters a second with limited transmit", () => {
 		const fast = connect({ baud: 38400 });
 		fast.line.write("\x1b[5n");
-		// the request's four characters, then the answer's
-		fast.clock.advance(2.1);
+		// the request's four characters, each taken in in 0.45 ms, then the answer's four
+		fast.clock.advance(2);
+		expect(fast.host.join("")).toBe("\x1b");
+		fast.clock.advance(0.7);
 		expect(fast.host.join("")).toBe("\x1b[0n");
 		const slow = connect({ baud: 38400 }, { transmitLimited: true });
 		slow.line.write("\x1b[5n");
@@ -82,6 +84,7 @@ describe("serial line", () => {
 		expect(term.text(0)).toBe("");
 		expect(line.buffered).toBe(4);
 		line.hold(false);
+		clock.advance(2);
 		expect(term.text(0)).toBe("held");
 	});
 

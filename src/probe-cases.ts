@@ -53,7 +53,8 @@ export const CASES: readonly ProbeCase[] = [
 	{ name: "where DECSLRM puts the cursor", send: "\x1b[3;3H\x1b[?69h\x1b[5;20s", ask: [CURSOR] },
 	{ name: "where DECSTBM puts the cursor", send: "\x1b[3;3H\x1b[5;10r", ask: [CURSOR] },
 	{ name: "tab to the end of the line", send: "\x1b[1;75H\t\t", ask: [CURSOR] },
-	{ name: "tab stops at power-up", send: "", ask: ["\x1b[2$w"] },
+	// a soft reset keeps them, whatever programs set before
+	{ name: "tab stops a soft reset keeps", send: "", ask: ["\x1b[2$w"] },
 	// editing
 	{ name: "where insert line leaves the cursor", send: "\x1b[5;10H\x1b[L", ask: [CURSOR] },
 	{ name: "where delete line leaves the cursor", send: "\x1b[5;10H\x1b[M", ask: [CURSOR] },
@@ -133,7 +134,7 @@ export const CASES: readonly ProbeCase[] = [
 		name: "the status line, written past its end",
 		send: `\x1b[2$~\x1b[1$}${"x".repeat(85)}`,
 		ask: [CURSOR, "\x1b[6n"],
-		after: "\x1b[0$}",
+		after: "\x1b[2K\x1b[0$}",
 	},
 	{ name: "a valid DECRQSS", send: "\x1b[1m", ask: ["\x1bP$qm\x1b\\"] },
 	{ name: "an invalid DECRQSS", send: "", ask: ["\x1bP$qz\x1b\\"] },
