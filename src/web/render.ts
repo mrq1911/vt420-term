@@ -1,6 +1,7 @@
 /**
- * The VT420's screen on a canvas: rows of cells in a phosphor's two intensities, line attributes, blink, the
- * cursor, the status line, soft characters, and a scroll gliding a scan line at a time.
+ * The VT420's screen on a canvas: rows of cells in a phosphor's two intensities, drawn dot for dot from the terminal's
+ * own font, line attributes, blink, the cursor, the status line, soft characters, and a scroll gliding a scan line at
+ * a time.
  */
 
 import {
@@ -9,6 +10,7 @@ import {
 	ATTR_INVISIBLE,
 	ATTR_REVERSE,
 	ATTR_UNDERLINE,
+	CODE_SHIFT,
 	type EmuLine,
 	LINE_DOUBLE_BOTTOM,
 	LINE_DOUBLE_TOP,
@@ -16,6 +18,7 @@ import {
 	type SmoothScroll,
 	type Vt420,
 } from "../emu/vt420.ts";
+import { glyphRows, type Rows, slotFor, UNDERLINE_ROW } from "./font.ts";
 import { PICTURES, SHADES, SHAPES, STROKES } from "./glyphs.ts";
 
 export type Phosphor = "white" | "green" | "amber";
@@ -32,8 +35,8 @@ const NORMAL = 0.72;
 export type Weight = "thin" | "medium" | "heavy";
 export type Persistence = "off" | "short" | "long";
 
-/** How far, of a cell's width, each weight stretches a dot to the right: none, a quarter of a dot, half a dot. */
-const STRETCH: Readonly<Record<Weight, number>> = { thin: 0, medium: 0.025, heavy: 0.05 };
+/** How far, in dots, each weight spreads a lit dot to the right, as a beam driven harder does. */
+const STRETCH: Readonly<Record<Weight, number>> = { thin: 0, medium: 0.25, heavy: 0.5 };
 
 /** How long, in milliseconds, a lit dot takes to fade to a third (the phosphor's persistence). */
 const PERSISTENCE: Readonly<Record<Persistence, number>> = { off: 0, short: 30, long: 120 };
@@ -48,7 +51,7 @@ export interface Knobs {
 const PAD_X = 0.035;
 const PAD_Y = 0.045;
 
-/** Of a cell's height, where the font's band starts above the baseline and ends below it (VT323 units). */
+/** Of a cell's height, where the font's band starts above the baseline and ends below it (VT323 units), for what the VT420 has no glyph for. */
 const FONT_TOP = 760;
 const FONT_BOTTOM = -200;
 
@@ -261,7 +264,7 @@ export class Renderer {
 		blinkOn: boolean,
 		state: FrameState,
 	): void {
-		const scanLines = this.term.screenLines === 24 ? 16 : this.term.screenLines === 36 ? 10 : 8;
+		const scanLines = this.fontRows();
 		const progress = Math.min(1, (now - glide.start) / glide.duration);
 		const step = Math.round((1 - progress) * scanLines) / scanLines;
 		const offset = step * this.cellH * glide.event.direction;
@@ -299,6 +302,12 @@ export class Renderer {
 			false,
 		);
 		ctx.restore();
+	}
+
+	/** Scan lines a character row has, and so the font it draws with. */
+	private fontRows(): Rows {
+		const lines = this.term.screenLines;
+		return lines === 36 ? 10 : lines === 48 ? 8 : 16;
 	}
 
 	/** The tube where nothing is lit: black, the raster glowing more as brightness goes up. */
@@ -353,19 +362,23 @@ export class Renderer {
 				ctx.fillRect(x, y, w, this.cellH);
 			}
 			const ink = reverse ? this.background(false) : this.color(intensity);
-			if (shown && char !== " ") this.glyph(char, x, y, w, line.lineAttr, ink);
+			if (shown && char !== " ") this.glyph(char, attrs >> CODE_SHIFT, x, y, w, line.lineAttr, ink);
 			const underline = (shown && attrs & ATTR_UNDERLINE) || (isCursor && cursorStyle === "underline");
 			if (underline) {
 				ctx.fillStyle = isCursor && cursorStyle === "underline" && !(attrs & ATTR_UNDERLINE) ? this.color(1) : ink;
-				const thickness = Math.max(1, Math.round(this.cellH / 16));
-				const at = line.lineAttr === LINE_DOUBLE_TOP ? undefined : y + this.cellH - thickness * 2;
-				if (at !== undefined) ctx.fillRect(x, at, w, thickness);
+				// the font's underline scan line, two of them in a double-height line's lower half and none in its upper
+				const rows = this.fontRows();
+				const tall = line.lineAttr === LINE_DOUBLE_TOP || line.lineAttr === LINE_DOUBLE_BOTTOM;
+				const dh = (this.cellH * (tall ? 2 : 1)) / rows;
+				const at = (line.lineAttr === LINE_DOUBLE_BOTTOM ? y - this.cellH : y) + UNDERLINE_ROW[rows] * dh;
+				if (at >= y && at < y + this.cellH)
+					ctx.fillRect(x, Math.round(at), w, Math.round(at + dh) - Math.round(at));
 			}
 		}
 	}
 
 	/** A character in a cell `w` wide and a row high; double-height halves drawn from a glyph two rows high. */
-	private glyph(char: string, x: number, y: number, w: number, lineAttr: number, ink: string): void {
+	private glyph(char: string, stored: number, x: number, y: number, w: number, lineAttr: number, ink: string): void {
 		const ctx = this.ctx;
 		const tall = lineAttr === LINE_DOUBLE_TOP || lineAttr === LINE_DOUBLE_BOTTOM;
 		const h = this.cellH * (tall ? 2 : 1);
@@ -384,6 +397,11 @@ export class Renderer {
 					if (bits & (1 << dot)) ctx.fillRect(x + (left + dot) * dw, top + row * dh, dw * 1.25, dh);
 				}
 			});
+			return;
+		}
+		const slot = slotFor(char, stored);
+		if (slot !== undefined) {
+			this.dots(glyphRows(slot, this.fontRows(), this.term.columns === 132), x, top, w, h);
 			return;
 		}
 		const strokes = STROKES.get(char);
@@ -443,7 +461,35 @@ export class Renderer {
 		this.text(char, x, top, w, h);
 	}
 
-	/** Text from the font, its band fitted to the box. */
+	/**
+	 * A glyph of the terminal's, a run of lit dots at a time: each dot a scan line high, on whole pixels, and as wide
+	 * as the cell's share, a beam's soft edge where that falls between pixels.
+	 */
+	private dots(rows: number[], x: number, top: number, w: number, h: number): void {
+		const ctx = this.ctx;
+		const across = this.term.columns === 132 ? 6 : 10;
+		const dw = w / across;
+		const dh = h / rows.length;
+		const spread = STRETCH[this.weight] * dw;
+		for (const [row, bits] of rows.entries()) {
+			if (bits === 0) continue;
+			const y0 = Math.round(top + row * dh);
+			const y1 = Math.round(top + (row + 1) * dh);
+			let dot = 0;
+			while (dot < across) {
+				if (!(bits & (1 << dot))) {
+					dot++;
+					continue;
+				}
+				let end = dot + 1;
+				while (end < across && bits & (1 << end)) end++;
+				ctx.fillRect(x + dot * dw, y0, (end - dot) * dw + spread, y1 - y0);
+				dot = end;
+			}
+		}
+	}
+
+	/** Text from a font the browser has, its band fitted to the box, for a character the VT420 has no glyph for. */
 	private text(char: string, x: number, top: number, w: number, h: number): void {
 		const ctx = this.ctx;
 		const size = (h * 1000) / (FONT_TOP - FONT_BOTTOM);
@@ -461,9 +507,9 @@ export class Renderer {
 		ctx.translate(x + (w - advance * size * scale) / 2, baseline);
 		ctx.scale(scale, 1);
 		ctx.fillText(char, 0, 0);
-		// a heavier weight stretches each dot into the next, as a tube driven hard does
+		// a heavier weight spreads each dot into the next, as a beam driven harder does
 		const stretch = STRETCH[this.weight];
-		if (stretch > 0) ctx.fillText(char, (w * stretch) / scale, 0);
+		if (stretch > 0) ctx.fillText(char, (w * stretch) / 10 / scale, 0);
 		ctx.restore();
 	}
 

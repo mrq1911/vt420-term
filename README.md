@@ -122,8 +122,13 @@ them to a file (it leaves out DA3, the unit's serial number, and the answerback)
 differs. Run it from a login on the terminal itself, with nothing on the screen to keep:
 `vt420-probe ~/vt420-probe.json`.
 
-The characters are VT323 (by Peter Hull, under the SIL Open Font License, in `src/web/fonts`), stretched a half dot
-as the terminal's are; line drawing and the large symbols of DEC Technical are drawn so they meet their neighbours.
+The characters are the VT420's own, dot for dot: its character generator as firmware V1.4 loads it into video
+memory, read from the firmware running in [Blaze](https://github.com/mmastrac/blaze), an emulator of the terminal's
+hardware, with a font for each height of row (16 scan lines at 24 lines, 10 at 36, 8 at 48) and each width (10 dots
+at 80 columns, 6 at 132). Each cell draws the glyph the firmware would, picked by the set the character came from, so
+DEC Technical's corner is not line drawing's; `src/web/font.ts` has the lookup, checked against the firmware for every
+character of every set. What the VT420 has no glyph for, as `--utf8` can bring, falls back to VT323 (by Peter Hull,
+under the SIL Open Font License, in `src/web/fonts`) and to box drawing drawn so it meets its neighbours.
 Bytes from 0x80 are what a VT420 takes them for, C1 controls and the supplemental set; `--utf8` decodes UTF-8 instead,
 for programs that know nothing else. Not there: two sessions and their windows, the printer port, PC TERM mode,
 key position reports and display controls mode.
