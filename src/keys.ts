@@ -34,6 +34,9 @@ export interface KeyTranslatorOptions {
 	escapeTimeoutMs?: number;
 	/** F11, F12 and F13 as xterm's F11, F12 and Shift+F1, for zellij to bind, rather than Escape, BS and LF. */
 	functionKeys?: boolean;
+	/** Function key that switches to the native session, such as "f19", which then goes nowhere else. */
+	nativeKey?: string;
+	native?(): void;
 }
 
 const TILDE_NAMES: Record<number, string> = {
@@ -53,6 +56,12 @@ const TILDE_NAMES: Record<number, string> = {
 	33: "f19",
 	34: "f20",
 };
+
+/** The bytes a VT420 sends for a function key, by name ("f19"), in 7-bit and 8-bit form. */
+export function functionKeyBytes(name: string): string[] {
+	const code = Object.entries(TILDE_NAMES).find(([, key]) => key === name)?.[0];
+	return code ? [`\x1b[${code}~`, `\x9b${code}~`] : [];
+}
 
 /** F14 to F20 as xterm sends them, Shift with F2 to F8; Help is F15, xterm's Shift+F3. */
 const XTERM_SHIFTED: Record<number, (modifier: number) => string> = {
@@ -232,6 +241,11 @@ export class KeyTranslator {
 		if (final === "~" && /^\d+$/.test(body)) {
 			const code = Number(body);
 			const name = TILDE_NAMES[code];
+			if (name && name === this.options.nativeKey) {
+				this.takeMeta();
+				this.options.native?.();
+				return;
+			}
 			// the meta key pressed twice is itself
 			if (name && name === this.options.metaKey && !this.takeMeta()) {
 				this.setMeta(true);

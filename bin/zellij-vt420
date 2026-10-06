@@ -17,5 +17,5 @@ if [[ -x "$here/zellij" ]]; then zellij="$here/zellij"; fi
 # the Help key runs zellij-vt420-help
 export PATH="$ROOT/bin:$PATH"
 # zellij's bar goes to the status line, so the panes get the whole screen
-# F11-F13 as function keys, which the profile binds
-exec "$ROOT/bin/vt420-term" --status-row --function-keys "${adapter[@]}" -- "$zellij" --config "${ZELLIJ_VT420_CONFIG:-$ROOT/zellij/vt420.kdl}" "$@"
+# F11-F13 as function keys, which the profile binds; F19 switches to a native session and back
+exec "$ROOT/bin/vt420-term" --status-row --function-keys --native-key f19 "${adapter[@]}" -- "$zellij" --config "${ZELLIJ_VT420_CONFIG:-$ROOT/zellij/vt420.kdl}" "$@"

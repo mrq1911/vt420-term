@@ -2,11 +2,11 @@
 // with these changes: Ctrl s and Ctrl q are XOFF and XON on a serial line, so scroll mode is on F20 and Quit is q in
 // session mode; Ctrl h is BS, so move mode is m in pane mode. The LK401's F11 to F20 are zellij's: F11 locks and
 // unlocks (all keys to the program), F12 pane mode, F13 tab mode, Help the keys, Do session mode, F17/F18 previous
-// and next tab, F19 a new pane, F20 scroll mode; a mode's own key leaves it. F6 to F10 and PF1 to PF4 are the
-// programs'. F14, the meta key (Alt), hands a key to the other side: F14 then F11-F20 gives the program that key
-// (F11 is Escape), F14 then F6/F7 moves focus left and right, F8 opens a pane, F9 shows floating panes, F10
-// fullscreens a pane, and PF1-PF4 enter pane, tab, resize and scroll mode. vt420-term sends F13, Help, Do and
-// F17-F20 as xterm does: Shift F1, Shift F3, F5 and Shift F5 to Shift F8.
+// and next tab, F20 scroll mode; a mode's own key leaves it. F19 never gets here: vt420-term switches to its native
+// session on it. F6 to F10 and PF1 to PF4 are the programs'. F14, the meta key (Alt), hands a key to the other side:
+// F14 then F11-F20 gives the program that key (F11 is Escape), F14 then F6/F7 moves focus left and right, F8 opens a
+// pane, F9 shows floating panes, F10 fullscreens a pane, and PF1-PF4 enter pane, tab, resize and scroll mode.
+// vt420-term sends F13, Help, Do and F17-F20 as xterm does: Shift F1, Shift F3, F5 and Shift F5 to Shift F8.
 
 keybinds clear-defaults=true {
     normal {
@@ -243,9 +243,8 @@ keybinds clear-defaults=true {
         }
         bind "Shift F5" { GoToPreviousTab; }
         bind "Shift F6" { GoToNextTab; }
-        bind "Shift F7" { NewPane; }
         // F14, then one of zellij's keys, gives the program that key as vt420-term would without --function-keys:
-        // F11 Escape, F12 BS, F13 LF, Help CSI 1;2R, Do CSI 15~, F17-F20 CSI 15;2~, 17;2~, 18;2~ and 19;2~
+        // F11 Escape, F12 BS, F13 LF, Help CSI 1;2R, Do CSI 15~, F17, F18 and F20 CSI 15;2~, 17;2~ and 19;2~
         bind "Alt F11" { Write 27; }
         bind "Alt F12" { Write 8; }
         bind "Alt Shift F1" { Write 10; }
@@ -253,7 +252,6 @@ keybinds clear-defaults=true {
         bind "Alt F5" { Write 27 91 49 53 126; }
         bind "Alt Shift F5" { Write 27 91 49 53 59 50 126; }
         bind "Alt Shift F6" { Write 27 91 49 55 59 50 126; }
-        bind "Alt Shift F7" { Write 27 91 49 56 59 50 126; }
         bind "Alt Shift F8" { Write 27 91 49 57 59 50 126; }
     }
     shared_except "normal" "locked" {

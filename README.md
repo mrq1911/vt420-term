@@ -77,15 +77,23 @@ programs', so pi-vt420 keeps its PF keys. F14, the meta key, hands a key to the 
 | F11 | lock: every key to the program until F11 again |
 | F12, F13, Do, F20 | pane, tab, session and scroll mode; a mode's own key, F11 or Ctrl-[ leaves it |
 | F17, F18 | previous and next tab |
-| F19 | new pane |
+| F19 | the native session and back (below) |
 | Help | these keys, in a floating pane |
-| F14, then F11 to F20 | that key to the program; F14 F11 is Escape, which the LK401 otherwise only has as Ctrl-[ |
+| F14, then F11 to F20 but F19 | that key to the program; F14 F11 is Escape, which the LK401 otherwise only has as Ctrl-[ |
 | F14, then F6, F7 | focus left and right, across tabs at the edges |
 | F14, then F8, F9, F10 | new pane, floating panes, fullscreen |
 | F14, then PF1 to PF4 | pane, tab, resize and scroll mode |
 | F14, then a letter or an arrow | zellij's Alt bindings, such as Alt n or Alt and the arrows |
 
 Do then q quits, and move mode is m in pane mode.
+
+F19 switches to a native session and back (`vt420-term --native-key f19`): your shell straight on the VT420, with
+nothing in between, so a program made for it, pi-vt420 among them, has its double-size lines, smooth scroll, status
+line and screen saver. The native session draws on page 2 of the terminal's page memory and zellij on page 1, so
+switching is instant, and the terminal reports its whole state (DECTSR, DECCIR) when the native session gives it up
+and gets it back (DECRSTS, DECRSPS) when the session takes it again; the native program's output waits meanwhile.
+Only the status line, which the pages share, is drawn again: a resize has the native program draw. Set-Up needs more
+than one page (6 pages of 24 lines does).
 
 It also uses the compact layout (one bar), `simplified_ui` (no Powerline glyphs), and turns off the mouse, startup tips
 and the kitty keyboard protocol. zellij gets a row more than the screen, and its bar, in that row, is shown on the

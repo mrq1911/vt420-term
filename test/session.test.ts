@@ -1,6 +1,6 @@
 import { afterEach, describe, expect, it } from "vitest";
 import { Session, type SessionOptions } from "../src/session.ts";
-import { EmulatedTerminal, FakeChild, settle } from "./fixtures.ts";
+import { EmulatedTerminal, FakeChild, FakeNative, settle } from "./fixtures.ts";
 import { vt420Violations } from "./safety.ts";
 
 const sessions: Session[] = [];
@@ -144,6 +144,65 @@ describe("vt420-term session", () => {
 		child.print("\x1b]2;vim notes.txt\x07");
 		await settle(80);
 		expect(terminal.emulator.statusText()).toMatch(/^ +vim notes\.txt$/);
+	});
+
+	it("switches to a native session on F19 and back, each on its own page and as it was left", async () => {
+		const natives: FakeNative[] = [];
+		const { terminal, child } = start(
+			{},
+			{
+				nativeKey: "f19",
+				spawnNative: () => {
+					const native = new FakeNative();
+					natives.push(native);
+					return native;
+				},
+			},
+		);
+		child.print("zellij here");
+		await settle(80);
+		expect(terminal.row(0)).toBe("zellij here");
+		// F19: the native program starts, on page 2, and draws there itself
+		terminal.type("\x1b[33~");
+		await settle(80);
+		expect(natives).toHaveLength(1);
+		expect(terminal.emulator.page).toBe(1);
+		natives[0]!.print("\x1b[H$ pi -c");
+		await settle(20);
+		expect(terminal.row(0)).toBe("$ pi -c");
+		// keys reach it as the terminal sends them, F6 untranslated, and the adapter's program gets none
+		terminal.type("\x1b[17~x");
+		await settle(20);
+		expect(natives[0]!.input).toBe("\x1b[17~x");
+		expect(child.input).toBe("");
+		// F19 again: its output waits, the terminal reports its state, and page 1 shows zellij as it was
+		terminal.type("\x1b[33~");
+		await settle(120);
+		expect(natives[0]!.paused).toBe(true);
+		expect(terminal.emulator.page).toBe(0);
+		expect(terminal.row(0)).toBe("zellij here");
+		// what the native program writes meanwhile waits for it
+		natives[0]!.print("\x1b[2;1Hlater");
+		child.print(" and on");
+		await settle(80);
+		expect(terminal.row(0)).toBe("zellij here and on");
+		// and back: its page as it left it, what waited, and a resize to draw the status line again
+		terminal.type("\x1b[33~");
+		await settle(150);
+		expect(natives).toHaveLength(1);
+		expect(natives[0]!.paused).toBe(false);
+		expect(terminal.emulator.page).toBe(1);
+		expect(terminal.row(0)).toBe("$ pi -c");
+		expect(terminal.row(1)).toBe("later");
+		expect(natives[0]!.sizes.slice(-2)).toEqual([
+			[80, 23],
+			[80, 24],
+		]);
+		// when the native program ends, zellij has the terminal again
+		natives[0]!.exit();
+		await settle(80);
+		expect(terminal.emulator.page).toBe(0);
+		expect(terminal.row(0)).toBe("zellij here and on");
 	});
 
 	it("shows each key and what the program got for it, with showKeys", async () => {

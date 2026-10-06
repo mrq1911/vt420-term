@@ -96,6 +96,9 @@ export class Vt420Emulator {
 	top = 0;
 	bottom: number;
 	lineFeedNewLine = false;
+	/** Page memory: six pages of the screen's size; `lines` is the one the cursor is on, which is shown. */
+	pages: EmuLine[][] = [];
+	page = 0;
 	/** Bytes written, for assertions about output size. */
 	bytes = 0;
 	private readonly onResponse?: (bytes: string) => void;
@@ -139,6 +142,7 @@ export class Vt420Emulator {
 		this.transmitLimited = options.transmitLimited;
 		this.status = this.blankLine();
 		for (let row = 0; row < this.rows; row++) this.lines.push(this.blankLine());
+		this.pages[0] = this.lines;
 	}
 
 	/** Feed bytes; a string is taken as bytes (one per character, as written with latin1). */
@@ -692,6 +696,18 @@ export class Vt420Emulator {
 			case "?$p":
 				this.respond(`\x1b[?${params[0] ?? 0};${this.privateModeValue(params[0] ?? 0)}$y`);
 				return;
+			case " P":
+				// PPA: the cursor, and so the display, to a page
+				this.toPage(param(0, 1) - 1);
+				return;
+			case "$u":
+				// DECRQTSR: the terminal state, in this emulator's own form, as a VT420's is its own
+				if (params[0] === 1) this.respond(`\x1bP1$s${JSON.stringify(this.terminalState())}\x1b\\`);
+				return;
+			case "$w":
+				// DECRQPSR 1: the cursor information report
+				if (params[0] === 1) this.respond(`\x1bP1$u${this.row + 1};${this.col + 1};${this.page + 1}\x1b\\`);
+				return;
 			case "$p":
 				this.respond(`\x1b[${params[0] ?? 0};${params[0] === 20 ? (this.lineFeedNewLine ? 1 : 2) : 2}$y`);
 				return;
@@ -704,6 +720,19 @@ export class Vt420Emulator {
 		this.state = "ground";
 		const data = this.dcsData;
 		this.dcsData = "";
+		if (data.startsWith("1$p")) {
+			// DECRSTS
+			Object.assign(this, JSON.parse(data.slice(3)));
+			return;
+		}
+		if (data.startsWith("1$t")) {
+			// DECRSPS: the cursor, on its page
+			const [row = 1, col = 1, page = 1] = data.slice(3).split(";").map(Number);
+			this.toPage(page - 1);
+			this.row = row - 1;
+			this.col = col - 1;
+			return;
+		}
 		if (!data.startsWith("$q")) return;
 		const request = data.slice(2);
 		if (request === "$~") this.respond(`\x1bP0$r${this.statusType}$~\x1b\\`);
@@ -711,6 +740,20 @@ export class Vt420Emulator {
 		else if (request === "$|") this.respond(`\x1bP0$r${this.columns}$|\x1b\\`);
 		else if (request === "*|") this.respond(`\x1bP0$r${this.rows}*|\x1b\\`);
 		else this.respond("\x1bP1$r\x1b\\");
+	}
+
+	private toPage(page: number): void {
+		this.pages[this.page] = this.lines;
+		this.page = Math.max(0, Math.min(5, page));
+		this.pages[this.page] ??= Array.from({ length: this.rows }, () => this.blankLine());
+		this.lines = this.pages[this.page]!;
+	}
+
+	/** What DECTSR carries here: modes and margins, not the cursor or the screen. */
+	private terminalState(): Record<string, unknown> {
+		const { autowrap, cursorVisible, sgr, designations, gl, gr, top, bottom, left, right, leftRightMarginMode } =
+			this;
+		return { autowrap, cursorVisible, sgr, designations, gl, gr, top, bottom, left, right, leftRightMarginMode };
 	}
 
 	private respond(bytes: string): void {

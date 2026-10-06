@@ -1,4 +1,4 @@
-import type { SessionChild, SessionTerminal } from "../src/session.ts";
+import type { NativeChild, SessionChild, SessionTerminal } from "../src/session.ts";
 import { charsetDesignations } from "../src/vt420/sequences.ts";
 import type { TerminalCapabilities } from "../src/vt420/terminal.ts";
 import { type EmulatorOptions, Vt420Emulator } from "./emulator.ts";
@@ -52,6 +52,19 @@ export class EmulatedTerminal implements SessionTerminal {
 		const chunk = Buffer.from(bytes, this.caps.unicode ? "utf8" : "latin1");
 		this.sent.push(chunk);
 		this.emulator.feed(chunk);
+	}
+
+	writeBytes(chunk: Uint8Array): void {
+		this.sent.push(Buffer.from(chunk));
+		this.emulator.feed(Buffer.from(chunk));
+	}
+
+	restoreModes(): void {
+		this.write(`${charsetDesignations(this.caps)}\x1b[m`);
+	}
+
+	originalState(): string {
+		return "\x1b[m\x1b[r\x1b[H\x1b[2J";
 	}
 
 	onData(listener: (chunk: Buffer) => void): void {
@@ -125,3 +138,53 @@ export class FakeChild implements SessionChild {
 }
 
 export const settle = (ms = 40): Promise<void> => new Promise((resolve) => setTimeout(resolve, ms));
+
+/** The native session's program: what it is sent, as bytes, and whether its output is held. */
+export class FakeNative implements NativeChild {
+	readonly received: Buffer[] = [];
+	readonly sizes: Array<[number, number]> = [];
+	paused = false;
+	killed = false;
+	private dataListener: ((data: Buffer) => void) | undefined;
+	private exitListener: ((event: { exitCode: number }) => void) | undefined;
+
+	onData(listener: (data: Buffer) => void): void {
+		this.dataListener = listener;
+	}
+
+	onExit(listener: (event: { exitCode: number }) => void): void {
+		this.exitListener = listener;
+	}
+
+	write(data: string | Buffer): void {
+		this.received.push(Buffer.isBuffer(data) ? data : Buffer.from(data, "latin1"));
+	}
+
+	resize(columns: number, rows: number): void {
+		this.sizes.push([columns, rows]);
+	}
+
+	pause(): void {
+		this.paused = true;
+	}
+
+	resume(): void {
+		this.paused = false;
+	}
+
+	kill(): void {
+		this.killed = true;
+	}
+
+	print(data: string): void {
+		this.dataListener?.(Buffer.from(data, "latin1"));
+	}
+
+	exit(): void {
+		this.exitListener?.({ exitCode: 0 });
+	}
+
+	get input(): string {
+		return Buffer.concat(this.received).toString("latin1");
+	}
+}

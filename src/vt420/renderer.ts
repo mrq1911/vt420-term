@@ -151,13 +151,20 @@ export class Renderer {
 		this.valid = false;
 	}
 
-	/** Forget cursor, rendition and shift state after something else wrote to the terminal. */
+	/** Forget what the status line shows, after another program wrote there; the next frame writes it whole. */
+	forgetStatus(): void {
+		this.status = new Array(this.options.columns).fill(-1);
+	}
+
+	/** Forget cursor, rendition, shift, margin and visibility state after something else wrote to the terminal. */
 	forgetState(): void {
 		this.cursorRow = -1;
 		this.cursorCol = -1;
 		this.attrs = -1;
 		this.gl = -1;
 		this.region = undefined;
+		this.cursorVisible = undefined;
+		this.marginMode = false;
 		this.cursorVisible = undefined;
 		this.marginMode = false;
 	}

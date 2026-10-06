@@ -95,14 +95,70 @@ describe("vt420-term end to end", () => {
 				expect(status()).toContain("LOCKED");
 				await press("\x1b[23~");
 				expect(status()).toContain("NORMAL");
-				// F19 opens a pane, and Help alone shows the keys
-				await press("\x1b[33~");
+				// F14 F8 opens a pane, and Help alone shows the keys
+				await press("\x1b[26~\x1b[19~");
 				await settle(1000);
 				expect(screen().match(/│/g)?.length ?? 0).toBeGreaterThan(10);
 				await press("\x1b[28~");
 				await settle(1000);
 				expect(screen()).toContain("LK401 keys in zellij");
 				expect(vt420Violations(vt420.bytes())).toEqual([]);
+			} finally {
+				vt420.child.kill();
+				try {
+					execFileSync("zellij", ["kill-session", session], { stdio: "ignore" });
+				} catch {}
+				try {
+					execFileSync("zellij", ["delete-session", session, "--force"], { stdio: "ignore" });
+				} catch {}
+			}
+		},
+		30_000,
+	);
+	it.skipIf(!hasZellij)(
+		"switches between zellij and a native shell on F19, each keeping its screen",
+		async () => {
+			const session = `vt420-native-${process.pid}`;
+			const vt420 = run(
+				[
+					"--status-row",
+					"--function-keys",
+					"--native-key",
+					"f19",
+					"--",
+					"zellij",
+					"--config",
+					"zellij/vt420.kdl",
+					"--session",
+					session,
+				],
+				{ SHELL: "/bin/sh", PATH: `${process.cwd()}/bin:${process.env.PATH}` },
+			);
+			const screen = (): string => vt420.emulator.screen().join("\n");
+			try {
+				await settle(4000);
+				vt420.child.write("echo in-zellij\r");
+				await settle(800);
+				expect(screen()).toContain("in-zellij");
+				// F19: a shell straight on the terminal, on page 2, with the terminal's own TERM
+				vt420.child.write("\x1b[33~");
+				await settle(1500);
+				expect(vt420.emulator.page).toBe(1);
+				// the terminal's own TERM, vt420 as this test names it, and no VT420_TERM
+				vt420.child.write("echo native-$TERM-x$VT420_TERM\r");
+				await settle(800);
+				expect(screen()).toContain("native-vt420-x\n");
+				// and back: zellij's page as it was
+				vt420.child.write("\x1b[33~");
+				await settle(1500);
+				expect(vt420.emulator.page).toBe(0);
+				expect(screen()).toContain("in-zellij");
+				expect(screen()).not.toContain("native-vt420-x");
+				// again: the native page as it was
+				vt420.child.write("\x1b[33~");
+				await settle(1500);
+				expect(vt420.emulator.page).toBe(1);
+				expect(screen()).toContain("native-vt420-x\n");
 			} finally {
 				vt420.child.kill();
 				try {

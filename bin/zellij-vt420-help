@@ -6,11 +6,11 @@ cat <<'EOF'
 
  F11      lock: all keys to the program until F11 again
  F12      pane mode            F17 F18  previous, next tab
- F13      tab mode             F19      new pane
+ F13      tab mode             F19      native session and back
  Do       session mode         F20      scroll mode
  Help     these keys           F6-F10, PF1-PF4: the program's
 
- F14, then  F11-F20  that key to the program (F11 is Escape)
+ F14, then  F11-F20  that key to the program (F11 is Escape), not F19
             F6 F7    focus left, right    F8 new pane    F9 floating
             F10      fullscreen           F14 itself
             PF1-PF4  pane, tab, resize, scroll mode

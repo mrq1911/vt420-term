@@ -99,6 +99,7 @@ const SAVED_MODES: ReadonlyArray<[mode: string, fallback: number | undefined]> =
 	["?5", undefined],
 	["?69", 2],
 	["?73", undefined],
+	["?4", undefined],
 ];
 
 /** DA2 terminal types. */
@@ -421,6 +422,24 @@ export class Vt420Terminal {
 		this.setup();
 	}
 
+	/** Bytes as they are, from a program that draws on the terminal itself. */
+	writeBytes(chunk: Uint8Array): void {
+		if (this.closed || chunk.length === 0) return;
+		this.rawWrite(chunk);
+	}
+
+	/** The session's modes and designations again, keeping what the screen shows, and the scrolling Set-Up gave. */
+	restoreModes(): void {
+		this.setup(false);
+		const smooth = reportedMode(this.probe, "?4");
+		if (smooth !== undefined) this.write(smooth ? "\x1b[?4h" : "\x1b[?4l");
+	}
+
+	/** What puts the terminal back as the session found it, then clears the screen. */
+	originalState(): string {
+		return restoreSequence(this.probe, this.caps, this.options);
+	}
+
 	/** Milliseconds until the line has sent what was written, at the known line speed. */
 	get backlogMs(): number {
 		return Math.max(0, this.busyUntil - Date.now());
@@ -523,7 +542,7 @@ export class Vt420Terminal {
 		this.parser.setEscapeTimeout(Math.max(lone, this.caps.bytesPerSecond ? 4000 / this.caps.bytesPerSecond : 0));
 	}
 
-	private setup(): void {
+	private setup(clear = true): void {
 		const { caps, options } = this;
 		this.write(
 			[
@@ -539,7 +558,7 @@ export class Vt420Terminal {
 					eightBit: caps.eightBit,
 				}),
 				caps.statusLine ? statusLineType(2) : "",
-				"\x1b[m\x1b[H\x1b[2J",
+				clear ? "\x1b[m\x1b[H\x1b[2J" : "\x1b[m",
 			].join(""),
 		);
 	}

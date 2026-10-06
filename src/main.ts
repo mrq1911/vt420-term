@@ -4,7 +4,7 @@
 
 import { spawn } from "node-pty";
 import { isSaverMode, type SaverMode } from "./saver.ts";
-import { Session } from "./session.ts";
+import { type NativeChild, Session } from "./session.ts";
 import type { SupplementalSet } from "./vt420/charset.ts";
 import { Vt420Terminal, type Vt420TerminalOptions } from "./vt420/terminal.ts";
 
@@ -25,6 +25,9 @@ Program
                             where a status bar such as zellij's leaves the whole screen to the rest
       --function-keys       send F11, F12 and F13 as xterm's F11, F12 and Shift+F1, for zellij to bind, rather than
                             Escape, BS and LF
+      --native-key <key>    key (f6-f20, help or do) that switches the terminal between the program and a native
+                            session: your shell straight on the terminal, on a page of its own, which a program made
+                            for the VT420 draws on as it would without vt420-term
       --screensaver <mode>  auto, off, blank or progress: a dark screen after a spell without keys (auto is progress
                             on a DEC terminal, off on emulators)
       --screensaver-minutes <n>  minutes without a key before it starts (default 10)
@@ -49,6 +52,7 @@ interface Args {
 	terminal: Vt420TerminalOptions;
 	term: string;
 	metaKey: string;
+	nativeKey?: string;
 	showKeys: boolean;
 	statusRow: boolean;
 	functionKeys: boolean;
@@ -118,6 +122,25 @@ function parseArgs(argv: readonly string[]): Args {
 					"help",
 					"do",
 					"none",
+				]);
+				break;
+			case "--native-key":
+				args.nativeKey = mode(arg, value(), [
+					"f6",
+					"f7",
+					"f8",
+					"f9",
+					"f10",
+					"f11",
+					"f12",
+					"f13",
+					"f14",
+					"f17",
+					"f18",
+					"f19",
+					"f20",
+					"help",
+					"do",
 				]);
 				break;
 			case "--show-keys":
@@ -236,6 +259,21 @@ async function main(): Promise<void> {
 	});
 	const session = new Session(terminal, child, {
 		metaKey: args.metaKey,
+		nativeKey: args.nativeKey,
+		spawnNative: () => {
+			// straight on the terminal: its own TERM, and nothing saying an emulator is in between
+			const env = { ...process.env };
+			for (const name of ["VT420_TERM", "LC_VT420_TERM"]) delete env[name];
+			// with no encoding node-pty passes Buffers, which its typings, written for strings, do not say
+			return spawn(process.env.SHELL || "/bin/sh", [], {
+				name: process.env.TERM || "vt420",
+				cols: terminal.caps.columns,
+				rows: terminal.caps.rows,
+				cwd: process.cwd(),
+				env,
+				encoding: null,
+			}) as unknown as NativeChild;
+		},
 		showKeys: args.showKeys,
 		statusRow: args.statusRow,
 		functionKeys: args.functionKeys,

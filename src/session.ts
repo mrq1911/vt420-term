@@ -8,7 +8,7 @@
 
 import { Unicode11Addon } from "@xterm/addon-unicode11";
 import xterm from "@xterm/headless";
-import { KeyTranslator } from "./keys.ts";
+import { functionKeyBytes, KeyTranslator } from "./keys.ts";
 import { activity, SAVER_MINUTES, SAVER_MOVE_MS, type SaverMode, saverFrame, saverPlace } from "./saver.ts";
 import { ScreenMapper } from "./screen.ts";
 import { ATTR_BOLD, BLANK } from "./vt420/cells.ts";
@@ -23,8 +23,25 @@ export interface SessionTerminal {
 	/** Milliseconds until what was written has gone out at the known line speed. */
 	readonly backlogMs: number;
 	write(bytes: string): void;
+	/** Bytes as they are, from the native session's program. */
+	writeBytes(chunk: Uint8Array): void;
+	/** The session's modes and designations again, keeping what the screen shows. */
+	restoreModes(): void;
+	/** What puts the terminal back as the session found it, then clears the screen. */
+	originalState(): string;
 	onData(listener: (chunk: Buffer) => void): void;
 	onResize(handler: () => void): void;
+}
+
+/** The native session's program, on a pseudo-terminal of its own, whose bytes pass through as they are. */
+export interface NativeChild {
+	onData(listener: (data: Buffer) => void): unknown;
+	onExit(listener: (event: { exitCode: number; signal?: number }) => void): unknown;
+	write(data: string | Buffer): void;
+	resize(columns: number, rows: number): void;
+	pause(): void;
+	resume(): void;
+	kill(): void;
 }
 
 /** The program side, as node-pty provides it. */
@@ -48,6 +65,12 @@ export interface SessionOptions {
 	statusRow?: boolean;
 	/** F11, F12 and F13 reach the program as function keys rather than Escape, BS and LF. */
 	functionKeys?: boolean;
+	/**
+	 * Function key, such as "f19", that switches the terminal between the program and a native session, whose program,
+	 * started by `spawnNative` on the first switch, draws on the terminal itself.
+	 */
+	nativeKey?: string;
+	spawnNative?: () => NativeChild;
 	/** Screen saver after a spell without keys; "auto" is "progress" on a DEC terminal and "off" on emulators. */
 	screensaver?: SaverMode | "auto";
 	screensaverMinutes?: number;
@@ -102,6 +125,12 @@ function chunks(parts: readonly string[], max: number): string[] {
 }
 /** How long a synchronized update may hold back frames before the screen is drawn anyway. */
 const SYNCHRONIZED_HOLD_MS = 150;
+/** The page of the terminal's page memory the native session draws on; the program's is page 1. */
+const NATIVE_PAGE = 2;
+/** How long the frames out may take to be answered, and the terminal's state reports to come, on a switch. */
+const SWITCH_WAIT_MS = 2000;
+/** How long the native side's input waits when it ends as the switch key could start. */
+const NATIVE_KEY_WAIT_MS = 50;
 
 export class Session {
 	private readonly io: SessionTerminal;
@@ -144,12 +173,29 @@ export class Session {
 	private saving = false;
 	private saverPlace = { row: 0, col: 0 };
 	private changedAt = Date.now();
+	/** Which side the terminal shows, and the switches between them. */
+	private shown: "main" | "toNative" | "native" | "toMain" = "main";
+	private readonly spawnNative: (() => NativeChild) | undefined;
+	private readonly nativeKeys: string[];
+	private native: NativeChild | undefined;
+	/** Native output that came while the program's side showed, to go out on the way back. */
+	private nativeHeld: Buffer[] = [];
+	/** The terminal and cursor state the native program left, as the terminal reported them. */
+	private nativeState: { terminal: string; cursor: string } | undefined;
+	/** What came from the terminal while its state reports were awaited. */
+	private reports = "";
+	private reportTimer: ReturnType<typeof setTimeout> | undefined;
+	/** The end of the native side's input, held while it could be the start of the switch key. */
+	private nativePending = "";
+	private nativePendingTimer: ReturnType<typeof setTimeout> | undefined;
 
 	constructor(io: SessionTerminal, child: SessionChild, options: SessionOptions = {}) {
 		this.io = io;
 		this.child = child;
 		this.frameMs = options.frameMs ?? 16;
 		this.showKeys = options.showKeys ?? false;
+		this.spawnNative = options.nativeKey ? options.spawnNative : undefined;
+		this.nativeKeys = this.spawnNative ? functionKeyBytes(options.nativeKey!) : [];
 		const caps = io.caps;
 		this.statusRow = (options.statusRow ?? false) && caps.statusLine;
 		const saver = options.screensaver ?? "auto";
@@ -214,6 +260,8 @@ export class Session {
 			unicode: () => this.io.caps.unicode,
 			metaKey: options.metaKey === "none" ? undefined : (options.metaKey ?? "f14"),
 			functionKeys: options.functionKeys ?? false,
+			nativeKey: this.spawnNative ? options.nativeKey : undefined,
+			native: () => this.toNative(),
 			metaChanged: () => this.changed(),
 			escapeTimeoutMs: Math.max(
 				caps.unicode ? EMULATOR_ESCAPE_TIMEOUT_MS : DEC_ESCAPE_TIMEOUT_MS,
@@ -233,6 +281,14 @@ export class Session {
 			}),
 		);
 		io.onData((chunk) => {
+			if (this.shown === "native") {
+				this.nativeInput(chunk);
+				return;
+			}
+			if (this.shown === "toMain") {
+				this.gatherReports(chunk);
+				return;
+			}
 			// the terminal's answers to the adapter's own requests are not keys
 			if (this.showKeys && !/^\x1b\[(\?[\d;]*c|[03]n)$/.test(chunk.toString("latin1"))) {
 				this.keyIn = visible(chunk.toString("latin1"));
@@ -263,6 +319,9 @@ export class Session {
 		clearTimeout(this.answerTimer);
 		clearTimeout(this.saverTimer);
 		clearInterval(this.saverMoveTimer);
+		clearTimeout(this.reportTimer);
+		clearTimeout(this.nativePendingTimer);
+		this.native?.kill();
 		this.keys.dispose();
 		this.term.dispose();
 	}
@@ -282,7 +341,8 @@ export class Session {
 	}
 
 	private frame(): void {
-		if (this.closed || !this.dirty) return;
+		// the native session has the terminal, or is taking it or giving it back
+		if (this.closed || !this.dirty || this.shown !== "main") return;
 		if (this.term.modes.synchronizedOutputMode) {
 			this.heldSince ??= Date.now();
 			if (Date.now() - this.heldSince < SYNCHRONIZED_HOLD_MS) {
@@ -397,12 +457,12 @@ export class Session {
 	private armSaver(): void {
 		clearTimeout(this.saverTimer);
 		this.saverTimer = undefined;
-		if (this.saver === "off" || this.closed) return;
+		if (this.saver === "off" || this.closed || this.shown !== "main") return;
 		this.saverTimer = setTimeout(() => this.startSaver(), this.saverMinutes * 60_000);
 	}
 
 	private startSaver(): void {
-		if (this.saving || this.closed) return;
+		if (this.saving || this.closed || this.shown !== "main") return;
 		this.saving = true;
 		// a light screen would stay lit
 		if (this.io.caps.screenReverse) this.io.write("\x1b[?5l");
@@ -433,7 +493,6 @@ export class Session {
 		return truncateCells(line, this.io.caps.columns, this.charset.cells("…"));
 	}
 
-	/** The program's title on the right, as the footer sits in pi-vt420, and Alt while the meta key is pending. */
 	/**
 	 * The pending Alt or the keys at the left; at the right the title, or the program's own row under it all. pi-vt420
 	 * puts its footer in the title, π first, where it has no status line of its own; that shows instead, and over
@@ -477,7 +536,156 @@ export class Session {
 		const rows = this.rows();
 		this.term.resize(columns, rows);
 		this.child.resize(columns, rows);
+		this.native?.resize(columns, this.io.caps.rows);
 		this.renderer = rendererFor(this.io.caps);
 		this.changed();
+	}
+
+	// ---------------------------------------------------------------------------------------------
+	// The native session: a second program that draws on the terminal itself, on a page of the terminal's page memory
+	// of its own, so the switch key flips between the two at once and each finds its screen as it left it. The
+	// terminal reports its whole state (DECTSR) and the cursor's (DECCIR) when the native session gives the terminal
+	// up, and gets them back (DECRSTS, DECRSPS) when it takes it again; only the status line, shared by the pages, is
+	// drawn again, by the native program after a resize and by the renderer for the program.
+
+	private toNative(): void {
+		if (this.shown !== "main" || !this.spawnNative || this.closed) return;
+		if (this.saving) this.wake();
+		this.shown = "toNative";
+		clearTimeout(this.saverTimer);
+		const started = Date.now();
+		const handOver = (): void => {
+			if (this.closed) return;
+			// the frames still out come first, else their answers would go to the native program
+			if ((this.unanswered.length > 0 || this.outbox.length > 0) && Date.now() - started < SWITCH_WAIT_MS) {
+				setTimeout(handOver, 20);
+				return;
+			}
+			this.outbox = [];
+			this.unanswered = [];
+			this.stallProbes = 0;
+			clearTimeout(this.answerTimer);
+			const { columns, rows } = this.io.caps;
+			this.io.write(
+				this.nativeState
+					? `\x1bP1$p${this.nativeState.terminal}\x1b\\\x1bP1$t${this.nativeState.cursor}\x1b\\`
+					: `\x1b[${NATIVE_PAGE} P${this.io.originalState()}`,
+			);
+			this.shown = "native";
+			if (!this.native) {
+				this.startNative();
+				return;
+			}
+			for (const data of this.nativeHeld.splice(0)) this.io.writeBytes(data);
+			this.native.resume();
+			// a resize has the program draw again, the status line with it
+			this.native.resize(columns, rows - 1);
+			setTimeout(() => this.native?.resize(columns, rows), 50);
+		};
+		handOver();
+	}
+
+	private startNative(): void {
+		const native = this.spawnNative!();
+		this.native = native;
+		native.onData((data) => {
+			if (this.shown === "native") this.io.writeBytes(data);
+			else this.nativeHeld.push(data);
+		});
+		native.onExit(() => {
+			if (this.native !== native) return;
+			this.native = undefined;
+			this.nativeState = undefined;
+			this.nativeHeld = [];
+			if (this.shown === "native") this.toMain();
+		});
+	}
+
+	/** Keys and answers for the native program, as they come, but for the switch key. */
+	private nativeInput(chunk: Buffer): void {
+		clearTimeout(this.nativePendingTimer);
+		const text = this.nativePending + chunk.toString("latin1");
+		this.nativePending = "";
+		let at = -1;
+		let length = 0;
+		for (const key of this.nativeKeys) {
+			const index = text.indexOf(key);
+			if (index >= 0 && (at < 0 || index < at)) {
+				at = index;
+				length = key.length;
+			}
+		}
+		if (at >= 0) {
+			this.toNativeProgram(text.slice(0, at));
+			this.toMain();
+			const rest = text.slice(at + length);
+			if (rest && this.shown === "toMain") this.gatherReports(Buffer.from(rest, "latin1"));
+			return;
+		}
+		// an end that could start the switch key waits a moment for the rest
+		let keep = 0;
+		for (const key of this.nativeKeys) {
+			for (let size = Math.min(key.length - 1, text.length); size > keep; size--) {
+				if (text.endsWith(key.slice(0, size))) {
+					keep = size;
+					break;
+				}
+			}
+		}
+		this.toNativeProgram(text.slice(0, text.length - keep));
+		if (keep === 0) return;
+		this.nativePending = text.slice(text.length - keep);
+		this.nativePendingTimer = setTimeout(() => {
+			const held = this.nativePending;
+			this.nativePending = "";
+			this.toNativeProgram(held);
+		}, NATIVE_KEY_WAIT_MS);
+	}
+
+	private toNativeProgram(text: string): void {
+		if (text) this.native?.write(Buffer.from(text, "latin1"));
+	}
+
+	/** The native session gives the terminal up: its output waits, and the terminal reports the state it leaves. */
+	private toMain(): void {
+		if (this.shown !== "native") return;
+		this.native?.pause();
+		if (!this.native) {
+			this.showMain();
+			return;
+		}
+		this.shown = "toMain";
+		this.reports = "";
+		this.io.write("\x1b[1$u\x1b[1$w");
+		this.reportTimer = setTimeout(() => this.reportsDone(), SWITCH_WAIT_MS);
+	}
+
+	/** The state reports, kept apart from whatever else comes meanwhile, which is still the native program's. */
+	private gatherReports(chunk: Buffer): void {
+		this.reports += chunk.toString("latin1");
+		const terminal = /(?:\x1bP|\x90)1\$s([^\x1b\x9c]*)(?:\x1b\\|\x9c)/.exec(this.reports);
+		const cursor = /(?:\x1bP|\x90)1\$u([^\x1b\x9c]*)(?:\x1b\\|\x9c)/.exec(this.reports);
+		if (terminal && cursor) this.reportsDone({ terminal: terminal[1]!, cursor: cursor[1]! });
+	}
+
+	/** Without the reports, the native session starts on a cleared page next time. */
+	private reportsDone(state?: { terminal: string; cursor: string }): void {
+		clearTimeout(this.reportTimer);
+		this.nativeState = state;
+		const rest = this.reports.replace(/(?:\x1bP|\x90)1\$[su][^\x1b\x9c]*(?:\x1b\\|\x9c)/g, "");
+		this.reports = "";
+		this.toNativeProgram(rest);
+		this.showMain();
+	}
+
+	/** The program's page, its modes again, and whatever changed meanwhile drawn, the shared status line in full. */
+	private showMain(): void {
+		this.shown = "main";
+		this.io.write("\x1b[1 P");
+		this.io.restoreModes();
+		this.renderer.forgetState();
+		this.renderer.forgetStatus();
+		this.changed();
+		this.armSaver();
 	}
 }
