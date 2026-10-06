@@ -62,181 +62,119 @@
 	"cases": [
 		{
 			"name": "checksum of a blank cell",
-			"answers": [
-				"\u001bP1!~0000\u001b\\"
-			]
+			"answers": ["\u001bP1!~0000\u001b\\"]
 		},
 		{
 			"name": "checksum of A",
-			"answers": [
-				"\u001bP1!~FFBF\u001b\\"
-			]
+			"answers": ["\u001bP1!~FFBF\u001b\\"]
 		},
 		{
 			"name": "checksum of bold A",
-			"answers": [
-				"\u001bP1!~DFBF\u001b\\"
-			]
+			"answers": ["\u001bP1!~DFBF\u001b\\"]
 		},
 		{
 			"name": "checksum of underlined A",
-			"answers": [
-				"\u001bP1!~FBBF\u001b\\"
-			]
+			"answers": ["\u001bP1!~FBBF\u001b\\"]
 		},
 		{
 			"name": "checksum of blinking A",
-			"answers": [
-				"\u001bP1!~7FBF\u001b\\"
-			]
+			"answers": ["\u001bP1!~7FBF\u001b\\"]
 		},
 		{
 			"name": "checksum of reverse A",
-			"answers": [
-				"\u001bP1!~BFBF\u001b\\"
-			]
+			"answers": ["\u001bP1!~BFBF\u001b\\"]
 		},
 		{
 			"name": "checksum of invisible A",
-			"answers": [
-				"\u001bP1!~FFBF\u001b\\"
-			]
+			"answers": ["\u001bP1!~FFBF\u001b\\"]
 		},
 		{
 			"name": "checksum of protected A",
-			"answers": [
-				"\u001bP1!~F7BF\u001b\\"
-			]
+			"answers": ["\u001bP1!~F7BF\u001b\\"]
 		},
 		{
 			"name": "checksum of reverse blank",
-			"answers": [
-				"\u001bP1!~BFE0\u001b\\"
-			]
+			"answers": ["\u001bP1!~BFE0\u001b\\"]
 		},
 		{
 			"name": "checksum of a line-drawing character",
-			"answers": [
-				"\u001bP1!~FFEE\u001b\\"
-			]
+			"answers": ["\u001bP1!~FFEE\u001b\\"]
 		},
 		{
 			"name": "checksum of a Technical character",
-			"answers": [
-				"\u001bP1!~EF9F\u001b\\"
-			]
+			"answers": ["\u001bP1!~EF9F\u001b\\"]
 		},
 		{
 			"name": "checksum of a supplemental character",
-			"answers": [
-				"\u001bP1!~FF17\u001b\\"
-			]
+			"answers": ["\u001bP1!~FF17\u001b\\"]
 		},
 		{
 			"name": "checksum of two rows",
-			"answers": [
-				"\u001bP1!~FEF6\u001b\\"
-			]
+			"answers": ["\u001bP1!~FEF6\u001b\\"]
 		},
 		{
 			"name": "backspace after the last column",
-			"answers": [
-				"\u001b[?1;79;1R"
-			]
+			"answers": ["\u001b[?1;79;1R"]
 		},
 		{
 			"name": "wrap to the next line",
-			"answers": [
-				"\u001b[?2;2;1R",
-				"\u001bP1!~FF87\u001b\\"
-			]
+			"answers": ["\u001b[?2;2;1R", "\u001bP1!~FF87\u001b\\"]
 		},
 		{
 			"name": "carriage return after the last column",
-			"answers": [
-				"\u001b[?1;2;1R",
-				"\u001bP1!~FF87\u001b\\"
-			]
+			"answers": ["\u001b[?1;2;1R", "\u001bP1!~FF87\u001b\\"]
 		},
 		{
 			"name": "no autowrap overwrites the last column",
-			"answers": [
-				"\u001b[?1;80;1R",
-				"\u001bP1!~FF86\u001b\\"
-			]
+			"answers": ["\u001b[?1;80;1R", "\u001bP1!~FF86\u001b\\"]
 		},
 		{
 			"name": "cursor up from below the bottom margin",
-			"answers": [
-				"\u001b[?5;1;1R"
-			]
+			"answers": ["\u001b[?5;1;1R"]
 		},
 		{
 			"name": "cursor down from above the top margin",
-			"answers": [
-				"\u001b[?10;1;1R"
-			]
+			"answers": ["\u001b[?10;1;1R"]
 		},
 		{
 			"name": "cursor up inside the margins",
-			"answers": [
-				"\u001b[?5;1;1R"
-			]
+			"answers": ["\u001b[?5;1;1R"]
 		},
 		{
 			"name": "cursor position report in origin mode",
-			"answers": [
-				"\u001b[2;3R",
-				"\u001b[?2;3;1R"
-			]
+			"answers": ["\u001b[2;3R", "\u001b[?2;3;1R"]
 		},
 		{
 			"name": "cursor forward past the right margin",
-			"answers": [
-				"\u001b[?1;20;1R"
-			]
+			"answers": ["\u001b[?1;20;1R"]
 		},
 		{
 			"name": "cursor forward outside the margins",
-			"answers": [
-				"\u001b[?1;80;1R"
-			]
+			"answers": ["\u001b[?1;80;1R"]
 		},
 		{
 			"name": "cursor back at the left margin",
-			"answers": [
-				"\u001b[?1;5;1R"
-			]
+			"answers": ["\u001b[?1;5;1R"]
 		},
 		{
 			"name": "backspace at the left margin",
-			"answers": [
-				"\u001b[?1;5;1R"
-			]
+			"answers": ["\u001b[?1;5;1R"]
 		},
 		{
 			"name": "carriage return outside the margins",
-			"answers": [
-				"\u001b[?1;1;1R"
-			]
+			"answers": ["\u001b[?1;1;1R"]
 		},
 		{
 			"name": "where DECSLRM puts the cursor",
-			"answers": [
-				"\u001b[?1;1;1R"
-			]
+			"answers": ["\u001b[?1;1;1R"]
 		},
 		{
 			"name": "where DECSTBM puts the cursor",
-			"answers": [
-				"\u001b[?1;1;1R"
-			]
+			"answers": ["\u001b[?1;1;1R"]
 		},
 		{
 			"name": "tab to the end of the line",
-			"answers": [
-				"\u001b[?1;79;1R"
-			]
+			"answers": ["\u001b[?1;79;1R"]
 		},
 		{
 			"name": "tab stops a soft reset keeps",
@@ -246,101 +184,67 @@
 		},
 		{
 			"name": "where insert line leaves the cursor",
-			"answers": [
-				"\u001b[?5;1;1R"
-			]
+			"answers": ["\u001b[?5;1;1R"]
 		},
 		{
 			"name": "where delete line leaves the cursor",
-			"answers": [
-				"\u001b[?5;1;1R"
-			]
+			"answers": ["\u001b[?5;1;1R"]
 		},
 		{
 			"name": "insert line below the bottom margin",
-			"answers": [
-				"\u001b[?15;2;1R",
-				"\u001bP1!~FF88\u001b\\"
-			]
+			"answers": ["\u001b[?15;2;1R", "\u001bP1!~FF88\u001b\\"]
 		},
 		{
 			"name": "insert character pushes off the right margin",
-			"answers": [
-				"\u001bP1!~FF9F\u001b\\"
-			]
+			"answers": ["\u001bP1!~FF9F\u001b\\"]
 		},
 		{
 			"name": "delete character in insert mode",
-			"answers": [
-				"\u001bP1!~FE70\u001b\\"
-			]
+			"answers": ["\u001bP1!~FE70\u001b\\"]
 		},
 		{
 			"name": "insert mode at the last column",
-			"answers": [
-				"\u001b[?1;80;1R",
-				"\u001bP1!~FF47\u001b\\"
-			]
+			"answers": ["\u001b[?1;80;1R", "\u001bP1!~FF47\u001b\\"]
 		},
 		{
 			"name": "erase below from column 1 of a double-width line",
-			"answers": [
-				"\u001b[?3;80;1R"
-			]
+			"answers": ["\u001b[?3;80;1R"]
 		},
 		{
 			"name": "erase a double-width line",
-			"answers": [
-				"\u001b[?3;40;1R"
-			]
+			"answers": ["\u001b[?3;40;1R"]
 		},
 		{
 			"name": "double width, then the cursor far right",
-			"answers": [
-				"\u001b[?2;40;1R"
-			]
+			"answers": ["\u001b[?2;40;1R"]
 		},
 		{
 			"name": "double width keeps the left half",
-			"answers": [
-				"\u001bP1!~ED18\u001b\\"
-			]
+			"answers": ["\u001bP1!~ED18\u001b\\"]
 		},
 		{
 			"name": "selective erase keeps the protected",
-			"answers": [
-				"\u001bP1!~F79E\u001b\\"
-			]
+			"answers": ["\u001bP1!~F79E\u001b\\"]
 		},
 		{
 			"name": "selective erase keeps attributes",
-			"answers": [
-				"\u001bP1!~A000\u001b\\"
-			]
+			"answers": ["\u001bP1!~A000\u001b\\"]
 		},
 		{
 			"name": "erase character clears attributes",
-			"answers": [
-				"\u001bP1!~BF9D\u001b\\"
-			]
+			"answers": ["\u001bP1!~BF9D\u001b\\"]
 		},
 		{
 			"name": "fill with a line-drawing character",
-			"answers": [
-				"\u001bP1!~FFA6\u001b\\"
-			]
+			"answers": ["\u001bP1!~FFA6\u001b\\"]
 		},
 		{
 			"name": "fill takes the rendition",
-			"answers": [
-				"\u001bP1!~933D\u001b\\"
-			]
+			"answers": ["\u001bP1!~933D\u001b\\"]
 		},
 		{
 			"name": "copy to another page",
-			"answers": [
-				"\u001bP1!~FDEC\u001b\\"
-			]
+			"answers": ["\u001bP1!~FDEC\u001b\\"]
 		},
 		{
 			"name": "reverse attributes over a stream of positions",
@@ -353,191 +257,114 @@
 		},
 		{
 			"name": "change attributes in a rectangle",
-			"answers": [
-				"\u001bP1!~0000\u001b\\",
-				"\u001bP1!~E000\u001b\\",
-				"\u001bP1!~E000\u001b\\"
-			]
+			"answers": ["\u001bP1!~0000\u001b\\", "\u001bP1!~E000\u001b\\", "\u001bP1!~E000\u001b\\"]
 		},
 		{
 			"name": "erase a rectangle keeps line attributes",
-			"answers": [
-				"\u001b[?2;40;1R"
-			]
+			"answers": ["\u001b[?2;40;1R"]
 		},
 		{
 			"name": "SUB shows the error character",
-			"answers": [
-				"\u001b[?1;4;1R",
-				"\u001bP1!~EFE6\u001b\\"
-			]
+			"answers": ["\u001b[?1;4;1R", "\u001bP1!~EFE6\u001b\\"]
 		},
 		{
 			"name": "CAN shows nothing",
-			"answers": [
-				"\u001b[?1;3;1R"
-			]
+			"answers": ["\u001b[?1;3;1R"]
 		},
 		{
 			"name": "BEL does not end an OSC string",
-			"answers": [
-				"\u001b[?1;2;1R",
-				"\u001bP1!~FF86\u001b\\"
-			]
+			"answers": ["\u001b[?1;2;1R", "\u001bP1!~FF86\u001b\\"]
 		},
 		{
 			"name": "a C1 control ends an OSC string",
-			"answers": [
-				"\u001b[?1;3;1R"
-			]
+			"answers": ["\u001b[?1;3;1R"]
 		},
 		{
 			"name": "DEL with a 94-character set",
-			"answers": [
-				"\u001b[?1;3;1R"
-			]
+			"answers": ["\u001b[?1;3;1R"]
 		},
 		{
 			"name": "single shift for one character",
-			"answers": [
-				"\u001bP1!~FFEE\u001b\\",
-				"\u001bP1!~FF8F\u001b\\"
-			]
+			"answers": ["\u001bP1!~FFEE\u001b\\", "\u001bP1!~FF8F\u001b\\"]
 		},
 		{
 			"name": "GR 0xA0 with DEC Supplemental",
-			"answers": [
-				"\u001b[?1;2;1R",
-				"\u001bP1!~EFE6\u001b\\"
-			]
+			"answers": ["\u001b[?1;2;1R", "\u001bP1!~EFE6\u001b\\"]
 		},
 		{
 			"name": "GR 0xFF with DEC Supplemental",
-			"answers": [
-				"\u001b[?1;1;1R"
-			]
+			"answers": ["\u001b[?1;1;1R"]
 		},
 		{
 			"name": "colour by numbers: 38;5;n",
-			"answers": [
-				"\u001bP1!~5FBF\u001b\\"
-			]
+			"answers": ["\u001bP1!~5FBF\u001b\\"]
 		},
 		{
 			"name": "unknown CSI final",
-			"answers": [
-				"\u001b[?1;2;1R"
-			]
+			"answers": ["\u001b[?1;2;1R"]
 		},
 		{
 			"name": "cursor information after shifts",
-			"answers": [
-				"\u001bP1$u1;1;1;E;@;@;2;1;@;B0>%5\u001b\\"
-			]
+			"answers": ["\u001bP1$u1;1;1;E;@;@;2;1;@;B0>%5\u001b\\"]
 		},
 		{
 			"name": "soft reset turns autowrap off",
-			"answers": [
-				"\u001b[?7;2$y"
-			]
+			"answers": ["\u001b[?7;2$y"]
 		},
 		{
 			"name": "soft reset and the cursor's visibility",
-			"answers": [
-				"\u001b[?25;1$y"
-			]
+			"answers": ["\u001b[?25;1$y"]
 		},
 		{
 			"name": "soft reset and smooth scroll",
-			"answers": [
-				"\u001b[?4;1$y"
-			]
+			"answers": ["\u001b[?4;1$y"]
 		},
 		{
 			"name": "soft reset and insert mode",
-			"answers": [
-				"\u001b[4;2$y"
-			]
+			"answers": ["\u001b[4;2$y"]
 		},
 		{
 			"name": "restore cursor with nothing saved",
-			"answers": [
-				"\u001b[?1;1;1R",
-				"\u001bP1$u1;1;1;@;@;@;0;2;@;BB<<\u001b\\"
-			]
+			"answers": ["\u001b[?1;1;1R", "\u001bP1$u1;1;1;@;@;@;0;2;@;BB<<\u001b\\"]
 		},
 		{
 			"name": "screen alignment and the margins",
-			"answers": [
-				"\u001bP1$r1;24r\u001b\\",
-				"\u001b[?1;1;1R",
-				"\u001bP1!~FFBB\u001b\\"
-			]
+			"answers": ["\u001bP1$r1;24r\u001b\\", "\u001b[?1;1;1R", "\u001bP1!~FFBB\u001b\\"]
 		},
 		{
 			"name": "48 lines on pages of 24",
-			"answers": [
-				"\u001b[24;80;1;1;1\"w",
-				"\u001b[?24;1;1R"
-			]
+			"answers": ["\u001b[24;80;1;1;1\"w", "\u001b[?24;1;1R"]
 		},
 		{
 			"name": "the status line, written past its end",
-			"answers": [
-				"\u001b[?1;80;1R",
-				"\u001b[1;80R"
-			]
+			"answers": ["\u001b[?1;80;1R", "\u001b[1;80R"]
 		},
 		{
 			"name": "a valid DECRQSS",
-			"answers": [
-				"\u001bP1$r0;1m\u001b\\"
-			]
+			"answers": ["\u001bP1$r0;1m\u001b\\"]
 		},
 		{
 			"name": "an invalid DECRQSS",
-			"answers": [
-				"\u001bP0$r\u001b\\"
-			]
+			"answers": ["\u001bP0$r\u001b\\"]
 		},
 		{
 			"name": "an unknown DEC mode",
-			"answers": [
-				"\u001b[?255;0$y"
-			]
+			"answers": ["\u001b[?255;0$y"]
 		},
 		{
 			"name": "a permanently reset ANSI mode",
-			"answers": [
-				"\u001b[1;4$y"
-			]
+			"answers": ["\u001b[1;4$y"]
 		}
 	],
 	"timing": {
 		"roundTripMs": 4.8819060000005265,
 		"roundTrips": [
-			4.85223600000063,
-			5.9864410000000134,
-			4.8819060000005265,
-			4.943850999999995,
-			6.797437000000173,
-			3.9836169999998674,
-			3.9656679999998232,
-			5.984423999999308,
-			3.9625820000001113,
-			3.9447449999997843,
-			5.949762000000192,
-			3.9489199999998164
+			4.85223600000063, 5.9864410000000134, 4.8819060000005265, 4.943850999999995, 6.797437000000173,
+			3.9836169999998674, 3.9656679999998232, 5.984423999999308, 3.9625820000001113, 3.9447449999997843,
+			5.949762000000192, 3.9489199999998164
 		],
-		"glideMsPerLine": [
-			94.3035908333333,
-			94.30576033333334,
-			94.28907250000005
-		],
-		"narrowGlideMsPerLine": [
-			96.14260233333334,
-			96.12804949999979
-		],
+		"glideMsPerLine": [94.3035908333333, 94.30576033333334, 94.28907250000005],
+		"narrowGlideMsPerLine": [96.14260233333334, 96.12804949999979],
 		"jumpScrollMsFor24Lines": 322.9709349999994,
 		"textMsFor150": 71.96565700000065,
 		"reverseFillMs": 95.99735099999998,

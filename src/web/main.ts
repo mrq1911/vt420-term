@@ -5,7 +5,7 @@
 import { type KeyPress, keyBytes, pastedBytes } from "../emu/keyboard.ts";
 import { FACTORY_SETUP, latin1Bytes, RECOMMENDED_SETUP, Vt420, type Vt420Setup } from "../emu/vt420.ts";
 import { mapKey } from "./keys.ts";
-import { type Glide, Renderer, type Selection } from "./render.ts";
+import { type Glide, type Knobs, Renderer, type Selection } from "./render.ts";
 import { DEFAULT_DISPLAY, type DisplaySettings, SetupScreen } from "./setup.ts";
 import { Sound } from "./sound.ts";
 
@@ -17,6 +17,8 @@ const RELEASE_BYTES = 16 * 1024;
 const PAGE_SETUP: Vt420Setup = { ...RECOMMENDED_SETUP, autowrap: true };
 
 const SETUP_KEY = "vt420.setup";
+/** Where the thumbwheels were turned: a knob stays where it is, saved or not. */
+const KNOBS_KEY = "vt420.knobs";
 const DISPLAY_KEY = "vt420.display";
 
 function stored<T>(name: string): Partial<T> {
@@ -75,6 +77,8 @@ class Page {
 		const canvas = document.querySelector<HTMLCanvasElement>("#screen")!;
 		this.renderer = new Renderer(canvas, this.term);
 		this.renderer.setPhosphor(this.display.phosphor);
+		this.renderer.setLook(this.display.weight, this.display.persistence);
+		this.knobs();
 		this.input = document.querySelector<HTMLTextAreaElement>("#keyboard")!;
 		this.listen(canvas);
 		this.fit();
@@ -331,12 +335,58 @@ class Page {
 		}
 	}
 
+	/** The brightness and contrast thumbwheels under the screen: dragged up and down, or turned with the wheel. */
+	private knobs(): void {
+		const knobs: Knobs = { brightness: 0.35, contrast: 0.7, ...stored<Knobs>(KNOBS_KEY) };
+		const apply = (): void => {
+			this.renderer.setKnobs(knobs);
+			for (const name of ["brightness", "contrast"] as const) {
+				const wheel = document.querySelector<HTMLElement>(`#${name}`);
+				// the ridges move as the wheel turns
+				wheel?.style.setProperty("--turn", `${Math.round(knobs[name] * 60)}px`);
+				wheel?.setAttribute("aria-valuenow", String(Math.round(knobs[name] * 100)));
+			}
+			localStorage.setItem(KNOBS_KEY, JSON.stringify(knobs));
+		};
+		for (const name of ["brightness", "contrast"] as const) {
+			const wheel = document.querySelector<HTMLElement>(`#${name}`);
+			if (!wheel) continue;
+			const turn = (by: number): void => {
+				knobs[name] = Math.max(0, Math.min(1, knobs[name] + by));
+				apply();
+			};
+			wheel.addEventListener("wheel", (event) => {
+				event.preventDefault();
+				turn(-Math.sign(event.deltaY) * 0.04);
+			});
+			wheel.addEventListener("pointerdown", (event) => {
+				wheel.setPointerCapture(event.pointerId);
+				let last = event.clientY;
+				const move = (moved: PointerEvent): void => {
+					turn((last - moved.clientY) / 150);
+					last = moved.clientY;
+				};
+				const up = (): void => {
+					wheel.removeEventListener("pointermove", move);
+					wheel.removeEventListener("pointerup", up);
+					this.input.focus({ preventScroll: true });
+				};
+				wheel.addEventListener("pointermove", move);
+				wheel.addEventListener("pointerup", up);
+			});
+		}
+		apply();
+	}
+
 	private enterSetup(): void {
 		this.selection = undefined;
 		this.setupScreen = new SetupScreen({
 			target: this.term,
 			display: this.display,
-			changed: () => this.renderer.setPhosphor(this.display.phosphor),
+			changed: () => {
+				this.renderer.setPhosphor(this.display.phosphor);
+				this.renderer.setLook(this.display.weight, this.display.persistence);
+			},
 			save: () => {
 				localStorage.setItem(SETUP_KEY, JSON.stringify(this.term.setup));
 				localStorage.setItem(DISPLAY_KEY, JSON.stringify(this.display));
@@ -346,6 +396,7 @@ class Page {
 				this.term.powerUp();
 				Object.assign(this.display, DEFAULT_DISPLAY, factory ? {} : stored<DisplaySettings>(DISPLAY_KEY));
 				this.renderer.setPhosphor(this.display.phosphor);
+				this.renderer.setLook(this.display.weight, this.display.persistence);
 			},
 			exit: () => this.leaveSetup(),
 		});

@@ -47,7 +47,9 @@ body {
 	width: 100%;
 	height: 100%;
 	cursor: text;
-	filter: drop-shadow(0 0 0.1vmin rgb(var(--phosphor) / 0.7)) drop-shadow(0 0 0.6vmin rgb(var(--phosphor) / 0.25));
+	--glow: 0.4;
+	filter: drop-shadow(0 0 0.08vmin rgb(var(--phosphor) / calc(var(--glow) * 1.6)))
+		drop-shadow(0 0 0.5vmin rgb(var(--phosphor) / calc(var(--glow) * 0.6)));
 }
 
 /* the gaps between scan lines; the pitch follows the character rows */
@@ -86,6 +88,31 @@ body {
 	color: #5f5c56;
 	user-select: none;
 	cursor: pointer;
+}
+
+/* brightness and contrast: two thumbwheels standing out of the bezel under the screen, ridged */
+#wheels {
+	position: absolute;
+	right: 11%;
+	bottom: 0.15%;
+	display: flex;
+	gap: 1.4vmin;
+}
+
+.wheel {
+	--turn: 20px;
+	width: 3.4vmin;
+	height: 1.7vmin;
+	border-radius: 0.5vmin;
+	cursor: ns-resize;
+	touch-action: none;
+	background:
+		linear-gradient(to bottom, rgb(0 0 0 / 0.55), transparent 35%, transparent 65%, rgb(0 0 0 / 0.55)),
+		repeating-linear-gradient(to bottom, #3b3934 0, #3b3934 0.18vmin, #24231f 0.18vmin, #24231f 0.36vmin);
+	background-position:
+		0 0,
+		0 var(--turn);
+	box-shadow: inset 0 0 0.2vmin rgb(0 0 0 / 0.8);
 }
 
 #keyboard {

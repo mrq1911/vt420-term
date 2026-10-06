@@ -90,10 +90,12 @@ from what it wrote, and `--keep` keeps it for the next window. See `vt420 --help
 | Ctrl+F3, the Menu key, or a click on the bezel's label | Set-Up; `vt420-setup` in the terminal opens it too |
 | Alt+Enter | full screen, where Ctrl+W and the like reach the program too |
 
-**Set-Up** (Ctrl+F3) is a screen of its own, drawn by the terminal: columns and lines, the status line, the cursor,
-jump or smooth scroll and its speed, the phosphor (white, green or amber), the operating level and 7- or 8-bit
-controls, the identity DA gives, the supplemental set, national mode, keys, keyclick, bell, local echo and a line
-speed. Changes act at once; Save keeps them in the browser, Recall and Default go back to the saved ones or the
+**Set-Up** (Ctrl+F3, the Menu key, a click on the bezel's label, or `vt420-setup` typed in the terminal) is a screen
+of its own, drawn by the terminal: columns, lines and pages, the status line, the cursor, jump or smooth scroll and
+its speed, the operating level and 7- or 8-bit controls, the identity DA gives, the supplemental set, national mode,
+keys, keyclick, bell, local echo, a line speed, and the look: the phosphor (white, green or amber), how heavy the
+characters are drawn, and how long the phosphor glows after a dot goes dark. Brightness and contrast are two
+thumbwheels under the screen, as on the terminal: drag them or turn them with the mouse wheel. Changes act at once; Save keeps them in the browser, Recall and Default go back to the saved ones or the
 factory's. Until something is saved the page starts from the Set-Up pi-vt420's README lists (jump scroll, 6 pages
 of 24 lines, keys locked), with autowrap on for a shell's long lines. Dragging the mouse copies text, and
 Ctrl+Shift+V pastes.

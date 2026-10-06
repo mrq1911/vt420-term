@@ -23,6 +23,10 @@ export interface DisplaySettings {
 	utf8: boolean;
 	/** The program's output taken in no faster than a line at this speed, 0 for no limit. */
 	baud: number;
+	/** How heavy the characters are drawn. */
+	weight: "thin" | "medium" | "heavy";
+	/** How long the phosphor glows once a dot goes dark. */
+	persistence: "off" | "short" | "long";
 }
 
 export const DEFAULT_DISPLAY: DisplaySettings = {
@@ -35,6 +39,8 @@ export const DEFAULT_DISPLAY: DisplaySettings = {
 	altMeta: true,
 	utf8: false,
 	baud: 0,
+	weight: "thin",
+	persistence: "short",
 };
 
 interface Item {
@@ -355,6 +361,26 @@ export class SetupScreen {
 						() => display.phosphor,
 						(phosphor) => shown({ phosphor }),
 					),
+					choice(
+						"Weight",
+						[
+							["thin", "Thin"],
+							["medium", "Medium"],
+							["heavy", "Heavy"],
+						],
+						() => display.weight,
+						(weight) => shown({ weight }),
+					),
+					choice(
+						"Persistence",
+						[
+							["off", "Off"],
+							["short", "Short"],
+							["long", "Long"],
+						],
+						() => display.persistence,
+						(persistence) => shown({ persistence }),
+					),
 				],
 			},
 		];
@@ -441,7 +467,6 @@ export class SetupScreen {
 					row++;
 					index++;
 				}
-				row++;
 			}
 		};
 		column(this.left, 0);
@@ -451,7 +476,7 @@ export class SetupScreen {
 			const selected = items.length + i === this.selected;
 			out += selected ? `\x1b[7m ${action.label} \x1b[m  ` : ` ${action.label}   `;
 		});
-		const hint = this.message || "Arrows move and change, Enter acts, Ctrl+F3 leaves";
+		const hint = this.message || "Arrows move and change, Enter acts, Esc leaves";
 		out += `\x1b[24;3H\x1b[1m${hint}\x1b[m`;
 		this.term.feed(out);
 	}

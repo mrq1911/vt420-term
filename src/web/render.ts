@@ -29,8 +29,20 @@ const PHOSPHORS: Readonly<Record<Phosphor, [number, number, number]>> = {
 /** Normal characters are this much of bold ones. */
 const NORMAL = 0.72;
 
-/** How far, of a cell's width, a dot is stretched to the right: half of one of its ten dots. */
-const DOT_STRETCH = 0.05;
+export type Weight = "thin" | "medium" | "heavy";
+export type Persistence = "off" | "short" | "long";
+
+/** How far, of a cell's width, each weight stretches a dot to the right: none, a quarter of a dot, half a dot. */
+const STRETCH: Readonly<Record<Weight, number>> = { thin: 0, medium: 0.025, heavy: 0.05 };
+
+/** How long, in milliseconds, a lit dot takes to fade to a third (the phosphor's persistence). */
+const PERSISTENCE: Readonly<Record<Persistence, number>> = { off: 0, short: 30, long: 120 };
+
+/** The two thumbwheels under the screen, each from 0 to 1. */
+export interface Knobs {
+	brightness: number;
+	contrast: number;
+}
 
 /** The dark border the picture keeps inside the tube, of its width and its height. */
 const PAD_X = 0.035;
@@ -64,11 +76,20 @@ export interface FrameState {
 type RowKey = string;
 
 export class Renderer {
+	/** The tube: what was drawn, fading as a phosphor does, under what is drawn now. */
 	readonly canvas: HTMLCanvasElement;
+	private readonly screen: CanvasRenderingContext2D;
+	/** The picture as the terminal draws it now, row by row as rows change. */
+	private readonly frame: HTMLCanvasElement;
 	private readonly ctx: CanvasRenderingContext2D;
 	/** The terminal shown: the one the program writes to, or Set-Up's. */
 	term: Vt420;
 	private phosphor: [number, number, number] = PHOSPHORS.white;
+	private knobs: Knobs = { brightness: 0.35, contrast: 0.7 };
+	private weight: Weight = "thin";
+	private persistence: Persistence = "short";
+	private lastComposite = 0;
+	private settleUntil = 0;
 	private drawn: RowKey[] = [];
 	private width = 0;
 	private height = 0;
@@ -82,8 +103,23 @@ export class Renderer {
 
 	constructor(canvas: HTMLCanvasElement, term: Vt420) {
 		this.canvas = canvas;
-		this.ctx = canvas.getContext("2d", { alpha: false })!;
+		this.screen = canvas.getContext("2d", { alpha: false })!;
+		this.frame = document.createElement("canvas");
+		this.ctx = this.frame.getContext("2d", { alpha: false })!;
 		this.term = term;
+	}
+
+	/** Brightness lifts the black of the tube and everything with it; contrast is how strongly characters light. */
+	setKnobs(knobs: Knobs): void {
+		this.knobs = { brightness: clamp01(knobs.brightness), contrast: clamp01(knobs.contrast) };
+		this.canvas.style.setProperty("--glow", String(0.15 + 0.35 * this.knobs.contrast));
+		this.invalidate();
+	}
+
+	setLook(weight: Weight, persistence: Persistence): void {
+		this.weight = weight;
+		this.persistence = persistence;
+		this.invalidate();
 	}
 
 	setPhosphor(phosphor: Phosphor): void {
@@ -101,6 +137,8 @@ export class Renderer {
 		this.height = Math.max(1, Math.round(box.height * ratio));
 		this.canvas.width = this.width;
 		this.canvas.height = this.height;
+		this.frame.width = this.width;
+		this.frame.height = this.height;
 		this.invalidate();
 	}
 
@@ -156,11 +194,13 @@ export class Renderer {
 		const glideTop = glide ? glide.event.top - term.windowTop : -1;
 		const glideBottom = glide ? glide.event.bottom - term.windowTop : -1;
 		const sizeKey = `${this.width}x${this.height}:${term.columns}x${slots}:${term.screenReverse}`;
+		let changed = glide !== undefined;
 		if (this.drawn.length !== slots + 1 || this.drawn[slots] !== sizeKey) {
 			this.drawn = new Array(slots + 1).fill("");
 			this.drawn[slots] = sizeKey;
 			this.ctx.fillStyle = this.background(term.screenReverse);
 			this.ctx.fillRect(0, 0, this.width, this.height);
+			changed = true;
 		}
 		for (let row = 0; row < slots; row++) {
 			const inGlide = glide !== undefined && row >= glideTop && row <= glideBottom;
@@ -171,6 +211,7 @@ export class Renderer {
 			if (!inGlide && key === this.drawn[row]) continue;
 			this.drawn[row] = key;
 			if (inGlide) continue;
+			changed = true;
 			const y = this.padY + row * this.cellH;
 			this.ctx.save();
 			this.ctx.beginPath();
@@ -180,6 +221,33 @@ export class Renderer {
 			this.ctx.restore();
 		}
 		if (glide) this.paintGlide(now, glide, glideTop, glideBottom, cursor, cursorOn, blinkOn, state);
+		this.composite(now, changed);
+	}
+
+	/**
+	 * Onto the tube: what was there fades toward the black of the tube and what is lit now lights it, the brighter of
+	 * the two kept, so a dot that goes dark glows a moment longer. Nothing to do once all has faded.
+	 */
+	private composite(now: number, changed: boolean): void {
+		const tau = PERSISTENCE[this.persistence];
+		const elapsed = Math.min(100, Math.max(0, now - this.lastComposite));
+		this.lastComposite = now;
+		if (changed) this.settleUntil = now + tau * 7;
+		else if (now > this.settleUntil) return;
+		const screen = this.screen;
+		if (tau === 0) {
+			screen.globalCompositeOperation = "copy";
+			screen.drawImage(this.frame, 0, 0);
+			screen.globalCompositeOperation = "source-over";
+			return;
+		}
+		screen.globalAlpha = 1 - Math.exp(-elapsed / tau);
+		screen.fillStyle = this.background(this.term.screenReverse);
+		screen.fillRect(0, 0, this.width, this.height);
+		screen.globalAlpha = 1;
+		screen.globalCompositeOperation = "lighten";
+		screen.drawImage(this.frame, 0, 0);
+		screen.globalCompositeOperation = "source-over";
 	}
 
 	/** The rows of a scroll part of the way there: one scan line further each step, the lost line going out. */
@@ -233,13 +301,20 @@ export class Renderer {
 		ctx.restore();
 	}
 
+	/** The tube where nothing is lit: black, the raster glowing more as brightness goes up. */
 	private background(reverse: boolean): string {
-		return reverse ? this.color(NORMAL) : "rgb(6 7 8)";
+		if (reverse) return this.color(NORMAL);
+		const [r, g, b] = this.phosphor;
+		const level = 0.006 + 0.11 * this.knobs.brightness ** 2;
+		return `rgb(${Math.round(4 + r * level)} ${Math.round(5 + g * level)} ${Math.round(6 + b * level)})`;
 	}
 
 	private color(intensity: number): string {
 		const [r, g, b] = this.phosphor;
-		return `rgb(${Math.round(r * intensity)} ${Math.round(g * intensity)} ${Math.round(b * intensity)})`;
+		// contrast sets the drive and brightness adds to it; no dot is brighter than the phosphor lit full
+		const gain = (0.35 + 0.85 * this.knobs.contrast) * (0.85 + 0.3 * this.knobs.brightness);
+		const level = Math.min(1, intensity * gain);
+		return `rgb(${Math.round(r * level)} ${Math.round(g * level)} ${Math.round(b * level)})`;
 	}
 
 	private paintLine(
@@ -386,8 +461,9 @@ export class Renderer {
 		ctx.translate(x + (w - advance * size * scale) / 2, baseline);
 		ctx.scale(scale, 1);
 		ctx.fillText(char, 0, 0);
-		// the terminal stretches each dot across half the next, which makes its strokes heavy
-		ctx.fillText(char, (w * DOT_STRETCH) / scale, 0);
+		// a heavier weight stretches each dot into the next, as a tube driven hard does
+		const stretch = STRETCH[this.weight];
+		if (stretch > 0) ctx.fillText(char, (w * stretch) / scale, 0);
 		ctx.restore();
 	}
 
@@ -421,6 +497,10 @@ export class Renderer {
 		this.shadeKey = key;
 		return pattern;
 	}
+}
+
+function clamp01(value: number): number {
+	return Math.max(0, Math.min(1, Number.isFinite(value) ? value : 0.5));
 }
 
 function lineWidth(line: EmuLine, columns: number): number {
