@@ -36,7 +36,10 @@ The terminal options are pi-vt420's: `--columns 80|132`, `--lines 24|36|48`, `--
 `--latin1`/`--dec-mcs`, `--8bit`, `--baud`, `--no-flow-control` and `--log`; `--term` sets the program's `TERM`
 (xterm-256color), `--meta-key` the key that sends Alt (F14), and `--show-keys` puts what each key sent, and what the
 program got for it, on the status line. See `vt420-term --help`. Programs find the terminal's name in `VT420_TERM`, so
-ones made for the VT420, pi-vt420 among them, know what is at the end of the line.
+ones made for the VT420, pi-vt420 among them, know what is at the end of the line; `LC_VT420_TERM` carries the same
+over ssh to a server with `AcceptEnv LC_VT420_TERM` (clients usually send `LC_*`). A window title that starts with
+π, which pi-vt420 sets to its footer, shows on the status line without the π, and with `--status-row` over the
+program's row while that row says NORMAL, so pi in a zellij pane has the status line as on the VT420 itself.
 
 ## Screen saver
 

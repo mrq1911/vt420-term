@@ -124,6 +124,28 @@ describe("vt420-term session", () => {
 		expect(terminal.emulator.statusText()).toBe(" Alt     zellij bar");
 	});
 
+	it("gives pi's footer, from its title, the status line, over zellij's bar while zellij is in normal mode", async () => {
+		const { terminal, child } = start({}, { statusRow: true });
+		// zellij's bar in its row, and the focused pane's title as zellij passes it on
+		child.print("\x1b[25;1H Zellij (main)  NORMAL  Tab #1\x1b[1;1H\x1b]2;main | π ↑12k ↓3k · ~/src\x07");
+		await settle(80);
+		expect(terminal.emulator.statusText()).toMatch(/^ +↑12k ↓3k · ~\/src$/);
+		// in another mode the bar shows which
+		child.print("\x1b[25;1H Zellij (main)  PANE    Tab #1\x1b[1;1H");
+		await settle(80);
+		expect(terminal.emulator.statusText()).toBe(" Zellij (main)  PANE    Tab #1");
+	});
+
+	it("shows pi's footer from its title without zellij too, and other titles as they are", async () => {
+		const { terminal, child } = start();
+		child.print("\x1b]2;π ↑1 ↓2 · ~/x\x07");
+		await settle(80);
+		expect(terminal.emulator.statusText()).toMatch(/^ +↑1 ↓2 · ~\/x$/);
+		child.print("\x1b]2;vim notes.txt\x07");
+		await settle(80);
+		expect(terminal.emulator.statusText()).toMatch(/^ +vim notes\.txt$/);
+	});
+
 	it("shows each key and what the program got for it, with showKeys", async () => {
 		const { terminal, child } = start({}, { showKeys: true });
 		child.print("\x1b]0;pi\x07");

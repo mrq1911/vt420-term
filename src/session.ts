@@ -434,12 +434,19 @@ export class Session {
 	}
 
 	/** The program's title on the right, as the footer sits in pi-vt420, and Alt while the meta key is pending. */
-	/** The pending Alt or the keys at the left; at the right the title, or the program's own row under it all. */
+	/**
+	 * The pending Alt or the keys at the left; at the right the title, or the program's own row under it all. pi-vt420
+	 * puts its footer in the title, π first, where it has no status line of its own; that shows instead, and over
+	 * zellij's bar too while zellij is in normal mode, so pi has the status line as it does on the VT420 itself.
+	 */
 	private statusCells(row?: readonly number[]): number[] {
 		const columns = this.io.caps.columns;
 		const keys = this.showKeys && this.keyIn ? ` ${this.keyIn} > ${this.keyOut || "nothing"}` : "";
 		const left = this.keys.metaPending ? this.charset.cells(" Alt", ATTR_BOLD) : keys ? this.charset.cells(keys) : [];
-		if (row) {
+		// zellij passes the focused pane's title on as "session | title"
+		const pi = /(?:^| \| )π (.+)$/.exec(this.title)?.[1];
+		const normal = row !== undefined && this.statusRowText().includes("NORMAL");
+		if (row && !(pi && normal)) {
 			const base = [...row.slice(0, columns - 1), ...spaces(Math.max(0, columns - 1 - row.length))];
 			const shown = truncateCells(left, columns - 1, []);
 			return [
@@ -450,8 +457,14 @@ export class Session {
 			];
 		}
 		const room = Math.max(0, columns - 2 - left.length - 1);
-		const title = truncateCells(this.charset.cells(this.title), room, this.charset.cells("…"));
+		const title = truncateCells(this.charset.cells(pi ?? this.title), room, this.charset.cells("…"));
 		return [...left, ...spaces(columns - 1 - left.length - title.length), ...title, BLANK];
+	}
+
+	/** The text of the program's row under the screen, with `statusRow`. */
+	private statusRowText(): string {
+		const buffer = this.term.buffer.active;
+		return buffer.getLine(buffer.viewportY + this.io.caps.rows)?.translateToString(true) ?? "";
 	}
 
 	/** Rows the program has: the screen's, and one for the status line with `statusRow`. */

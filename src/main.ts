@@ -211,8 +211,8 @@ async function main(): Promise<void> {
 			cols: terminal.caps.columns,
 			rows: terminal.caps.rows + (args.statusRow && terminal.caps.statusLine ? 1 : 0),
 			cwd: process.cwd(),
-			// programs made for the VT420, pi-vt420 among them, learn what they really draw on
-			env: { ...process.env, TERM: args.term, VT420_TERM: terminal.caps.name },
+			// programs made for the VT420, pi-vt420 among them, learn what they really draw on; ssh passes LC_ variables on
+			env: { ...process.env, TERM: args.term, VT420_TERM: terminal.caps.name, LC_VT420_TERM: terminal.caps.name },
 		});
 	} catch (error) {
 		terminal.close();
