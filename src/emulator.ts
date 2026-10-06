@@ -37,6 +37,8 @@ Terminal
 
 Program
       --term <name>          TERM for the program (default vt420)
+      --demo                 run vt420-demo, a tour of the terminal, round and round
+      --animations           run vt420-animations, the classic VT100 animations, round and round
 
 Window
       --port <n>             the port on 127.0.0.1 (default: any free one)
@@ -132,6 +134,12 @@ function parseArgs(argv: readonly string[]): Args {
 			}
 			case "--term":
 				args.term = value(i++, arg);
+				break;
+			case "--demo":
+				args.command = [fileURLToPath(new URL("../bin/vt420-demo", import.meta.url)), "--loop"];
+				break;
+			case "--animations":
+				args.command = [fileURLToPath(new URL("../bin/vt420-animations", import.meta.url)), "--loop"];
 				break;
 			case "--port":
 				args.port = Number(value(i++, arg));

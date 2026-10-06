@@ -60,6 +60,10 @@ class Page {
 			onBell: () => {
 				if (!this.replaying && this.display.bell) this.sound.bell();
 			},
+			// a VT420 ignores APC strings; vt420-setup sends one to open Set-Up from the command line
+			onApplicationString: (data) => {
+				if (data === "vt420:setup" && !this.replaying && !this.setupScreen) this.enterSetup();
+			},
 			onResize: (columns, lines) => {
 				if (this.renderer) {
 					this.renderer.invalidate();
@@ -252,6 +256,11 @@ class Page {
 			const text = input.value;
 			input.value = "";
 			if (text !== "" && !this.setupScreen) this.type(pastedBytes(this.term, text, { utf8: this.display.utf8 }));
+		});
+		// the label on the bezel opens Set-Up too, for a desktop that keeps Ctrl+F3 for itself
+		document.querySelector("#label")?.addEventListener("click", () => {
+			this.local("setup");
+			focus();
 		});
 		canvas.addEventListener("mousedown", (event) => {
 			this.selecting = this.renderer.cellAt(event.clientX, event.clientY);

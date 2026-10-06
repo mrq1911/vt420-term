@@ -47,6 +47,14 @@ describe("parser", () => {
 		expect(term.text(0)).toBe("     xéÄ");
 	});
 
+	it("ignores APC strings, but hands those ended by ST to whoever listens", () => {
+		const strings: string[] = [];
+		const term = new Vt420({ onApplicationString: (data) => strings.push(data) });
+		term.feed("a\x1b_vt420:setup\x1b\\b\x9fsecond\x9cc\x1b_cut\x18d");
+		expect(term.text(0)).toBe("abcd");
+		expect(strings).toEqual(["vt420:setup", "second"]);
+	});
+
 	it("decodes UTF-8 when told to, as a modern emulator", () => {
 		const { term } = terminal({ utf8: true });
 		term.feed(Buffer.from("π ≥ é", "utf8"));

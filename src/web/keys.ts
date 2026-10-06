@@ -6,7 +6,7 @@
  *   F6-F12                   F6-F12
  *   Shift or Alt + F1-F10    F11, F12, F13, F14, Help, Do, F17, F18, F19, F20
  *   Ctrl + F-key             that key with the LK401's Shift: a user-defined key
- *   Ctrl + F1, F3            Hold Screen and Set-Up; Scroll Lock and Pause hold the screen too
+ *   Ctrl + F1, F3            Hold Screen and Set-Up; Scroll Lock and Pause hold the screen too, Menu opens Set-Up
  *   Insert Delete Home End PgUp PgDn    Insert Here, Remove, Find, Select, Prev Screen, Next Screen
  *   keypad + and Alt+keypad -           the keypad's comma and minus
  */
@@ -61,6 +61,7 @@ export function mapKey(event: KeyboardEvent, keypadApplication: boolean): Mapped
 	if (ctrl && shift && code === "KeyC") return { local: "copy" };
 	if (ctrl && shift && code === "KeyV") return { local: "paste" };
 	if (code === "ScrollLock" || code === "Pause") return { local: "hold" };
+	if (code === "ContextMenu") return { local: "setup" };
 	const fn = /^F(\d+)$/.exec(code);
 	if (fn) return functionKey(Number(fn[1]), ctrl, shift, alt);
 	if (code === "NumpadSubtract") return { press: { key: alt ? "KPMinus" : "PF4" } };

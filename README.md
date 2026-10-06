@@ -67,6 +67,8 @@ vt420                       # your shell
 vt420 -- pi                 # pi-vt420
 vt420 --baud 19200 -- top   # no faster than a serial line
 vt420 -- zellij-vt420       # zellij through vt420-term
+vt420 --demo                # vt420-demo, round and round
+vt420 --animations          # vt420-animations, round and round
 ```
 
 It opens an app window of Chromium, Chrome, Brave or Edge, or else the default browser; `--no-open` prints the
@@ -85,7 +87,7 @@ from what it wrote, and `--keep` keeps it for the next window. See `vt420 --help
 | Escape | ESC, which the LK401 does not have |
 | Alt with a key | ESC and the key (Set-Up can turn it off) |
 | Ctrl+F1, Scroll Lock, Pause | Hold Screen |
-| Ctrl+F3 | Set-Up |
+| Ctrl+F3, the Menu key, or a click on the bezel's label | Set-Up; `vt420-setup` in the terminal opens it too |
 | Alt+Enter | full screen, where Ctrl+W and the like reach the program too |
 
 **Set-Up** (Ctrl+F3) is a screen of its own, drawn by the terminal: columns and lines, the status line, the cursor,
@@ -123,6 +125,23 @@ as the terminal's are; line drawing and the large symbols of DEC Technical are d
 Bytes from 0x80 are what a VT420 takes them for, C1 controls and the supplemental set; `--utf8` decodes UTF-8 instead,
 for programs that know nothing else. Not there: two sessions and their windows, the printer port, PC TERM mode,
 key position reports and display controls mode.
+
+## Demo and animations
+
+`vt420-demo` shows a VT420 what it can do, on the VT420 it runs on, the real one or vt420: double-size lines and
+attributes, line drawing and DEC Technical, rectangles, smooth scroll inside margins, two windows with left and right
+margins, a marquee and columns going in and out, a soft font, six pages drawn out of sight and flipped through, 132
+columns and 48 lines, the alignment pattern and selective erase, with the status line saying where it is. `n` goes
+on to the next scene, space pauses, `q` stops; the terminal's modes are put back afterwards.
+
+`vt420-animations` plays the classic VT100 animations of [textfiles.com](http://artscene.textfiles.com/vt100/) (the
+spinning globe, the Twilight Zone, the Torture Test, fireworks, Don Bertino's Disneyland) at 9600 baud, the speed
+they were made for. They are fetched into `~/.cache/vt420-term/animations` the first time and are not part of
+vt420-term. The playlist leaves out the seasonal ones (`--holidays`) and the rude ones (`--all` has everything); `n`,
+`p`, `+` and `-` go on, back, faster and slower. `--list` shows the playlist, `--baud` sets the speed.
+
+Both pace what they send by the terminal's answers, two pieces of under a hundred bytes out at most, so a VT420 on a
+fast line, gliding or not, is never sent more than its input buffer holds.
 
 ## Screen saver
 

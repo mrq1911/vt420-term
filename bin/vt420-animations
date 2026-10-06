@@ -1,0 +1,6 @@
+#!/usr/bin/env bash
+# vt420-animations from this checkout: the classic VT100 animations, at the speed they were made for
+set -euo pipefail
+ROOT="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)"
+node="$(cat "$ROOT/node_modules/.vt420-term-node" 2>/dev/null || echo node)"
+exec "$node" "$ROOT/src/animations.ts" "$@"
