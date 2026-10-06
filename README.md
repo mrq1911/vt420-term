@@ -145,7 +145,8 @@ on to the next scene, space pauses, `q` stops; the terminal's modes are put back
 spinning globe, the Twilight Zone, the Torture Test, fireworks, Don Bertino's Disneyland) at 9600 baud, the speed
 they were made for. They are fetched into `~/.cache/vt420-term/animations` the first time and are not part of
 vt420-term. The playlist leaves out the seasonal ones (`--holidays`) and the rude ones (`--all` has everything); `n`,
-`p`, `+` and `-` go on, back, faster and slower. `--list` shows the playlist, `--baud` sets the speed.
+`p`, `+` and `-` go on, back, faster and slower; the status line stays blank but for a few seconds after a key, when
+it shows them. `--list` shows the playlist, `--baud` sets the speed.
 
 Both pace what they send by the terminal's answers, two pieces of under a hundred bytes out at most, so a VT420 on a
 fast line, gliding or not, is never sent more than its input buffer holds.

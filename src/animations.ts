@@ -3,7 +3,8 @@
  * on the VT420 at the line speed they were made for. They are fetched into a cache the first time; none of them
  * comes with vt420-term.
  *
- * Keys: n or space the next one, p the one before, + and - a faster or slower line, q to stop.
+ * Keys: n or space the next one, p the one before, + and - a faster or slower line, q to stop. The status line shows
+ * them for a few seconds after any key, and is blank otherwise.
  */
 
 import { existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
@@ -14,6 +15,9 @@ import { pieces, sleep, snapshot, Tty } from "./vt-io.ts";
 const SOURCE = "http://artscene.textfiles.com/vt100/";
 const CSI = "\x1b[";
 const SPEEDS = [1200, 2400, 4800, 9600, 19200, 38400];
+const KEYS = "n next  p back  +/- speed  q quit";
+/** How long the controls stay on the status line after a key. */
+const SHOWN_MS = 4000;
 
 interface Animation {
 	file: string;
@@ -125,10 +129,14 @@ function cacheDir(): string {
 	return join(process.env.XDG_CACHE_HOME || join(homedir(), ".cache"), "vt420-term", "animations");
 }
 
+function cached(animation: Animation): boolean {
+	return existsSync(join(cacheDir(), animation.file));
+}
+
 /** The animation's bytes, fetched the first time; undefined where it cannot be had. */
 async function load(animation: Animation): Promise<Buffer | undefined> {
 	const path = join(cacheDir(), animation.file);
-	if (existsSync(path)) return readFileSync(path);
+	if (cached(animation)) return readFileSync(path);
 	try {
 		const response = await fetch(SOURCE + encodeURIComponent(animation.file), {
 			signal: AbortSignal.timeout(30_000),
@@ -174,6 +182,7 @@ function card(index: number, count: number, animation: Animation, size: number, 
 	out += `${CSI}9;1H\x1b#3${CSI}9;${centred(title, 40)}H${title}${CSI}10;1H\x1b#4${CSI}10;${centred(title, 40)}H${title}`;
 	for (const [i, line] of lines.entries()) out += `${CSI}${13 + i * 2};${centred(line, 80)}H${line}`;
 	out += `${CSI}20;${centred(`${index + 1} of ${count}`, 80)}H${index + 1} of ${count}`;
+	out += `${CSI}23;${centred(KEYS, 80)}H${KEYS}`;
 	return out;
 }
 
@@ -193,7 +202,8 @@ Animations come from artscene.textfiles.com/vt100 the first time, into ~/.cache/
   --list        the playlist
   --fetch       fetch the playlist into the cache and stop
 
-Keys: n or space the next one, p the one before, + and - faster and slower, q to stop.
+Keys: n or space the next one, p the one before, + and - faster and slower, q to stop; any key shows them on the
+status line for a few seconds.
 `);
 		return;
 	}
@@ -227,39 +237,60 @@ Keys: n or space the next one, p the one before, + and - faster and slower, q to
 	const tty = new Tty();
 	let index = 0;
 	let next: "next" | "previous" | "stop" | undefined;
+	// the controls stay off the screen until a key, and go a few seconds after the last
+	let shownUntil = 0;
+	let shown = "";
 	tty.onKey((key) => {
+		shownUntil = Date.now() + SHOWN_MS;
 		if (key === "q" || key === "Q" || key === "\x03") next = "stop";
 		else if (key === "n" || key === " " || key === "\r") next = "next";
 		else if (key === "p") next = "previous";
 		else if (key === "+" || key === "=") baud = SPEEDS.find((speed) => speed > baud) ?? baud;
 		else if (key === "-") baud = [...SPEEDS].reverse().find((speed) => speed < baud) ?? baud;
 	});
+	/** Text on the status line, which stays until the controls come or go. */
+	const say = (text: string): string => {
+		shown = text;
+		return status(text);
+	};
+	/** What brings the status line to what it should show now, if anything; everything `again` after a reset took it. */
+	const refresh = (again = false): string => {
+		const animation = playlist[index]!;
+		const want =
+			Date.now() < shownUntil ? ` ${index + 1}/${playlist.length} ${animation.file} at ${baud} baud   ${KEYS}` : "";
+		return want === shown && !again ? "" : say(want);
+	};
+	/** A while with nothing playing, or until a key moves on. */
+	const idle = async (ms: number): Promise<void> => {
+		for (let waited = 0; waited < ms && !next; waited += 100) {
+			await sleep(100);
+			const update = refresh();
+			if (update) await tty.send(update);
+		}
+	};
 	const back = await snapshot(tty);
-	await tty.send(`${CSI}2$~`);
+	await tty.send(say(""));
 	try {
 		while (next !== "stop") {
 			const animation = playlist[index]!;
 			next = undefined;
-			await tty.send(`${RESET}${status(` fetching ${animation.file}...`)}`);
+			await tty.send(`${RESET}${cached(animation) ? "" : say(` fetching ${animation.file}...`)}`);
 			const bytes = await load(animation);
 			if (!bytes) {
-				await tty.send(status(` ${animation.file} could not be fetched; n next, q quit`));
+				await tty.send(say(` ${animation.file} could not be fetched; n next, q quit`));
 				await sleep(1500);
 			} else {
 				await tty.send(card(index, playlist.length, animation, bytes.length, baud));
-				for (let wait = 0; wait < 30 && !next; wait++) await sleep(100);
+				await idle(3000);
 				if (!next)
 					await play(
 						tty,
 						prepare(bytes),
 						() => next !== undefined,
 						() => baud,
-						(speed) =>
-							status(
-								` ${index + 1}/${playlist.length} ${animation.file} at ${speed} baud   n next  p back  +/- speed  q quit`,
-							),
+						refresh,
 					);
-				for (let wait = 0; wait < 25 && !next; wait++) await sleep(100);
+				await idle(2500);
 			}
 			if (next === "stop") break;
 			if (next === "previous") index = (index + playlist.length - 1) % playlist.length;
@@ -275,29 +306,29 @@ Keys: n or space the next one, p the one before, + and - faster and slower, q to
 	process.exit(0);
 }
 
-/** The bytes at the line speed, in pieces the terminal answers, until `stopped`. */
+/** The bytes at the line speed, in pieces the terminal answers, until `stopped`, the status line kept by `refresh`. */
 async function play(
 	tty: Tty,
 	text: string,
 	stopped: () => boolean,
 	speed: () => number,
-	caption: (baud: number) => string,
+	refresh: (again: boolean) => string,
 ): Promise<void> {
-	let shownSpeed = 0;
+	let paced = 0;
 	let start = Date.now();
 	let sent = 0;
 	for (const piece of pieces(text, 48)) {
 		if (stopped()) return;
 		const baud = speed();
-		if (baud !== shownSpeed) {
-			shownSpeed = baud;
+		if (baud !== paced) {
+			paced = baud;
 			start = Date.now();
 			sent = 0;
-			await tty.send(caption(baud));
 		}
 		await tty.send(piece);
-		// a hard reset (some start with one) gives the status line back to Set-Up, without the caption
-		if (piece.includes("\x1bc")) await tty.send(caption(baud));
+		// a hard reset (some start with one) gives the status line back to Set-Up, so it is put back whatever it shows
+		const update = refresh(piece.includes("\x1bc"));
+		if (update) await tty.send(update);
 		sent += piece.length;
 		// as fast as the line it was made for, and no faster
 		const due = start + (sent * 10_000) / baud;
