@@ -183,6 +183,26 @@ async function timing(modes: Record<string, string | null>): Promise<Record<stri
 	await sync(START);
 	const reverseFill = (await sync("\x1b[7m\x1b[32;1;1;24;80$x\x1b[m")) - roundTrip;
 	const clear = (await sync("\x1b[2J")) - roundTrip;
+	// a new shape for the screen has the terminal rearrange its page memory, showing Wait; each once more with nothing
+	// to change, and a small soft font loaded
+	await sync(START);
+	const glyph = "~~~~~~~~~~/~~~~~~~~~~/~~~~~~~~~~";
+	const reshape: Record<string, number> = {};
+	const steps: Array<[string, string]> = [
+		["columns132", "\x1b[132$|"],
+		["columns80", "\x1b[80$|"],
+		["columns80Again", "\x1b[80$|"],
+		["pageLength48", "\x1b[48t"],
+		["lines48", "\x1b[48*|"],
+		["lines24", "\x1b[24*|"],
+		["lines24Again", "\x1b[24*|"],
+		["pageLength24", "\x1b[24t"],
+		["pageLength24Again", "\x1b[24t"],
+		["softFont4", `\x1bP1;1;1;10;0;2;16;0{ @${[glyph, glyph, glyph, glyph].join(";")}\x1b\\`],
+	];
+	for (const [name, bytes] of steps) {
+		reshape[`${name}Ms`] = (await sync(bytes)) - roundTrip;
+	}
 	// a long answer with limited transmit, if the terminal can be set to it
 	let limitedCps: number | undefined;
 	if (modes["?73"] && !/;0\$y$/.test(modes["?73"])) {
@@ -202,11 +222,12 @@ async function timing(modes: Record<string, string | null>): Promise<Record<stri
 		textMsFor150: text,
 		reverseFillMs: reverseFill,
 		clearMs: clear,
+		reshape,
 		limitedCps,
 	};
 }
 
-/** Put back what the cases change: the modes as they were, the margins, the status line and the size. */
+/** Put back what the cases change: the modes as they were, the margins, the status line, the size and the pages. */
 async function restore(modes: Record<string, string | null>, settings: Record<string, string | null>): Promise<void> {
 	let back = "\x1b[!p\x1b[?69l\x1b[1 P\x1b[r\x1b[m";
 	for (const number of [1, 4, 5, 7, 25, 66, 67, 73]) {
@@ -216,7 +237,7 @@ async function restore(modes: Record<string, string | null>, settings: Record<st
 	// a valid report has the setting in it, whichever of 0 and 1 the terminal takes for valid
 	const report = (setting: string): string | undefined =>
 		/^(?:\x1bP|\x90)[01]\$r(.+?)(?:\x1b\\|\x9c)$/.exec(settings[setting] ?? "")?.[1];
-	for (const setting of ["$~", "$|", "*|"]) {
+	for (const setting of ["$~", "t", "$|", "*|"]) {
 		const value = report(setting);
 		if (value) back += `\x1b[${value}`;
 	}

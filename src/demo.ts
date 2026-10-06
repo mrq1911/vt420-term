@@ -654,7 +654,9 @@ Keys: n the next scene, space to pause, q to stop.
 			}
 		}
 	} finally {
-		await tty.send(`${CSI}24*|${CSI}24t${CSI}80$|${back}${CSI}1$}\r${CSI}2K${CSI}0$}${CSI}?25h`);
+		// the snapshot has the shape back where the terminal reported it; each new shape keeps a VT420 busy a while
+		const shape = back.includes("$|") ? "" : `${CSI}24*|${CSI}24t${CSI}80$|`;
+		await tty.send(`${shape}${back}${CSI}1$}\r${CSI}2K${CSI}0$}${CSI}?25h`);
 		await tty.drain();
 		tty.close();
 	}
