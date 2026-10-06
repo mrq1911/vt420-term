@@ -129,6 +129,9 @@ The probe of pi-vt420 decides what is used. A VT420 or VT5xx gets everything; xt
 output. A VT320 lacks left and right margins and rectangle operations, so panes are redrawn instead of scrolled; a
 VT220 also lacks DEC Technical and the status line. Modern emulators get UTF-8 output and whatever margins they have.
 
+A VT420 is best set up as pi-vt420's README lists under Terminal setup: 38400 baud, Data Leads Only, XOFF at 128,
+Jump Scroll, 6 pages of 24 lines, VT400 mode with 7-bit controls.
+
 ## Not included
 
 Mouse input, images (sixel and kitty graphics are dropped), colour beyond the four attributes, and screens other than
