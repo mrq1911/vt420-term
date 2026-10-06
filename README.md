@@ -51,7 +51,7 @@ wakes the screen and does not reach the program. With zellij-vt420 the options g
 
 | LK401 | The program sees |
 | --- | --- |
-| F11, F12, F13 | Escape, BS and LF, as in VT100 mode; the LK401 has no Escape key |
+| F11, F12, F13 | Escape, BS and LF, as in VT100 mode; the LK401 has no Escape key. With `--function-keys`, xterm's F11, F12 and Shift+F1 |
 | F14 | Alt with the next key, and F14 itself when pressed twice (`--meta-key` changes or disables it); the status line shows **Alt** while it waits |
 | Help, F17-F20 | xterm's F15 and F17-F20, which it sends as Shift with F3 and F5-F8 |
 | Do | F5, a code the LK401 never sends (its F5 is the local Break key) |
@@ -65,20 +65,22 @@ After Escape the next key waits 80 ms, so a program cannot read the two as Alt a
 ## zellij
 
 `zellij-vt420` starts zellij with `zellij/vt420.kdl`: zellij's default keymap without Ctrl s and Ctrl q, which are
-XOFF and XON on a serial line, and Ctrl h, which is the BS that F12 sends. The LK401's keys work zellij with Alt, that
-is F14 and then the key, and stay the programs' otherwise, so pi-vt420, htop and mc keep their function keys.
+XOFF and XON on a serial line, and Ctrl h, which is BS. The LK401's F11 to F20 are zellij's (vt420-term
+`--function-keys` sends F11-F13 as function keys rather than Escape, BS and LF), F6 to F10 and PF1 to PF4 the
+programs', so pi-vt420 keeps its PF keys. F14, the meta key, hands a key to the other side.
 
-| F14, then | Action |
+| Key | Action |
 | --- | --- |
-| PF1, PF2, PF3, PF4, Do | pane, tab, resize, scroll and session mode; in a mode the keys need no F14, and the mode's own key leaves it |
-| F6, F7 | focus left and right, across tabs at the edges |
-| F8 | new pane |
-| F9 | show and hide floating panes |
-| F10 | fullscreen the focused pane |
-| Help | Help, to the program (Help alone shows these keys in a floating pane) |
+| F11 | lock: every key to the program until F11 again |
+| F12, F13, Do, F20 | pane, tab, session and scroll mode; a mode's own key, F11 or Ctrl-[ leaves it |
 | F17, F18 | previous and next tab |
-| F19, F20 | new tab, pane frames on and off |
-| a letter or an arrow | zellij's Alt bindings, such as Alt n or Alt and the arrows |
+| F19 | new pane |
+| Help | these keys, in a floating pane |
+| F14, then F11 to F20 | that key to the program; F14 F11 is Escape, which the LK401 otherwise only has as Ctrl-[ |
+| F14, then F6, F7 | focus left and right, across tabs at the edges |
+| F14, then F8, F9, F10 | new pane, floating panes, fullscreen |
+| F14, then PF1 to PF4 | pane, tab, resize and scroll mode |
+| F14, then a letter or an arrow | zellij's Alt bindings, such as Alt n or Alt and the arrows |
 
 Do then q quits, and move mode is m in pane mode.
 

@@ -54,10 +54,13 @@ describe("vt420-term end to end", () => {
 		async () => {
 			const session = `vt420-test-${process.pid}`;
 			// a plain shell in the panes, and zellij-vt420-help on the PATH as bin/zellij-vt420 puts it there
-			const vt420 = run(["--status-row", "--", "zellij", "--config", "zellij/vt420.kdl", "--session", session], {
-				SHELL: "/bin/sh",
-				PATH: `${process.cwd()}/bin:${process.env.PATH}`,
-			});
+			const vt420 = run(
+				["--status-row", "--function-keys", "--", "zellij", "--config", "zellij/vt420.kdl", "--session", session],
+				{
+					SHELL: "/bin/sh",
+					PATH: `${process.cwd()}/bin:${process.env.PATH}`,
+				},
+			);
 			const screen = (): string => vt420.emulator.screen().join("\n");
 			try {
 				await settle(4000);
@@ -66,23 +69,38 @@ describe("vt420-term end to end", () => {
 				expect(status()).toContain("Zellij");
 				expect(status()).toContain(session);
 				expect(vt420.emulator.screen()[23]).not.toContain("Zellij");
-				// PF1 alone is the program's; F14 then PF1 enters pane mode, where Do (F5) needs no F14 to go on to
-				// session mode, and F11 (Escape) goes back to normal
-				vt420.child.write("\x1bOP");
-				await settle(500);
+				const press = async (keys: string): Promise<void> => {
+					vt420.child.write(keys);
+					await settle(500);
+				};
+				// PF1 alone is the program's; F12 is pane mode, and again back; Do is session mode, F11 leaves it
+				await press("\x1bOP");
 				expect(status()).toContain("NORMAL");
-				vt420.child.write("\x1b[26~\x1bOP");
-				await settle(500);
+				await press("\x1b[24~");
 				expect(status()).toContain("PANE");
-				vt420.child.write("\x1b[29~");
-				await settle(500);
+				await press("\x1b[24~");
+				expect(status()).toContain("NORMAL");
+				await press("\x1b[29~");
 				expect(status()).toContain("SESSION");
-				// F14 F8 opens a pane, and Help alone shows the keys
-				vt420.child.write("\x1b[23~\x1b[26~\x1b[19~");
-				await settle(1500);
+				await press("\x1b[23~");
+				expect(status()).toContain("NORMAL");
+				// F14 then PF1 is pane mode too; F13 goes from there to tab mode
+				await press("\x1b[26~\x1bOP");
+				expect(status()).toContain("PANE");
+				await press("\x1b[25~");
+				expect(status()).toContain("TAB");
+				await press("\x1b[23~");
+				// F11 locks, and again unlocks
+				await press("\x1b[23~");
+				expect(status()).toContain("LOCKED");
+				await press("\x1b[23~");
+				expect(status()).toContain("NORMAL");
+				// F19 opens a pane, and Help alone shows the keys
+				await press("\x1b[33~");
+				await settle(1000);
 				expect(screen().match(/│/g)?.length ?? 0).toBeGreaterThan(10);
-				vt420.child.write("\x1b[28~");
-				await settle(1500);
+				await press("\x1b[28~");
+				await settle(1000);
 				expect(screen()).toContain("LK401 keys in zellij");
 				expect(vt420Violations(vt420.bytes())).toEqual([]);
 			} finally {

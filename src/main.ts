@@ -23,6 +23,8 @@ Program
       --show-keys           show each key's bytes, and what the program got, on the status line
       --status-row          give the program a row more than the screen and show its last one on the status line,
                             where a status bar such as zellij's leaves the whole screen to the rest
+      --function-keys       send F11, F12 and F13 as xterm's F11, F12 and Shift+F1, for zellij to bind, rather than
+                            Escape, BS and LF
       --screensaver <mode>  auto, off, blank or progress: a dark screen after a spell without keys (auto is progress
                             on a DEC terminal, off on emulators)
       --screensaver-minutes <n>  minutes without a key before it starts (default 10)
@@ -49,6 +51,7 @@ interface Args {
 	metaKey: string;
 	showKeys: boolean;
 	statusRow: boolean;
+	functionKeys: boolean;
 	screensaver: SaverMode | "auto";
 	screensaverMinutes?: number;
 	command: string[];
@@ -75,6 +78,7 @@ function parseArgs(argv: readonly string[]): Args {
 		metaKey: "f14",
 		showKeys: false,
 		statusRow: false,
+		functionKeys: false,
 		screensaver: "auto",
 		command: [],
 	};
@@ -121,6 +125,9 @@ function parseArgs(argv: readonly string[]): Args {
 				break;
 			case "--status-row":
 				args.statusRow = true;
+				break;
+			case "--function-keys":
+				args.functionKeys = true;
 				break;
 			case "--screensaver": {
 				const saver = value();
@@ -231,6 +238,7 @@ async function main(): Promise<void> {
 		metaKey: args.metaKey,
 		showKeys: args.showKeys,
 		statusRow: args.statusRow,
+		functionKeys: args.functionKeys,
 		screensaver: args.screensaver,
 		screensaverMinutes: args.screensaverMinutes,
 	});

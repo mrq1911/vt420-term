@@ -1,6 +1,7 @@
 /**
  * Keyboard input from the terminal for a program that expects xterm. Bytes pass through as they are except where
- * the LK401 differs: F11, F12 and F13 are Escape, BS and LF as in VT100 mode (the LK401 has no Escape key); Do is
+ * the LK401 differs: F11, F12 and F13 are Escape, BS and LF as in VT100 mode (the LK401 has no Escape key), or with
+ * `functionKeys` xterm's F11, F12 and Shift+F1, for zellij to bind; Do is
  * F5, a code the LK401 never sends, its F5 being the local Break key; F14 to F20, Help among them, are sent as xterm
  * sends them, as Shift with F2 to F8, so programs and zellij can bind them; Find and Select are Home and End; cursor and
  * keypad keys follow the program's modes, the keypad itself being kept in
@@ -31,6 +32,8 @@ export interface KeyTranslatorOptions {
 	metaChanged?(pending: boolean): void;
 	/** How long a lone ESC waits for the rest of a sequence. */
 	escapeTimeoutMs?: number;
+	/** F11, F12 and F13 as xterm's F11, F12 and Shift+F1, for zellij to bind, rather than Escape, BS and LF. */
+	functionKeys?: boolean;
 }
 
 const TILDE_NAMES: Record<number, string> = {
@@ -239,7 +242,10 @@ export class KeyTranslator {
 			if (shifted) this.deliver(shifted(this.takeMeta() ? 4 : 2));
 			else if (code === 1) this.send(this.cursorKey("H"));
 			else if (code === 4) this.send(this.cursorKey("F"));
-			else if (code === 23) this.send("\x1b");
+			else if (code === 25 && this.options.functionKeys) this.deliver(`\x1b[1;${this.takeMeta() ? 4 : 2}P`);
+			else if ((code === 23 || code === 24) && this.options.functionKeys) {
+				this.deliver(this.takeMeta() ? `\x1b[${code};3~` : `\x1b[${code}~`);
+			} else if (code === 23) this.send("\x1b");
 			else if (code === 24) this.send("\b");
 			else if (code === 25) this.send("\n");
 			else if (code === 29) this.send(this.takeMeta() ? "\x1b[15;3~" : "\x1b[15~");

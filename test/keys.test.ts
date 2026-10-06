@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { type KeyModes, KeyTranslator } from "../src/keys.ts";
 import { settle } from "./fixtures.ts";
 
-function translator(unicode = false) {
+function translator(unicode = false, functionKeys = false) {
 	const sent: string[] = [];
 	const meta: boolean[] = [];
 	let answers = 0;
@@ -16,6 +16,7 @@ function translator(unicode = false) {
 		metaKey: "f14",
 		metaChanged: (pending) => meta.push(pending),
 		escapeTimeoutMs: 10,
+		functionKeys,
 	});
 	return {
 		keys,
@@ -49,6 +50,16 @@ describe("keyboard translation", () => {
 		expect(type("\x1b[29~")).toBe("\x1b[15~");
 		setModes({ applicationCursorKeys: true, applicationKeypad: false });
 		expect(type("\x1b[1~\x1b[4~")).toBe("\x1bOH\x1bOF");
+	});
+
+	it("sends F11 to F13 as xterm's F11, F12 and Shift+F1 with functionKeys, for zellij to bind", () => {
+		const { type } = translator(false, true);
+		expect(type("\x1b[23~")).toBe("\x1b[23~");
+		expect(type("\x1b[24~")).toBe("\x1b[24~");
+		expect(type("\x1b[25~")).toBe("\x1b[1;2P");
+		// after the meta key, with Alt
+		expect(type("\x1b[26~\x1b[23~")).toBe("\x1b[23;3~");
+		expect(type("\x1b[26~\x1b[25~")).toBe("\x1b[1;4P");
 	});
 
 	it("follows the program's cursor and keypad modes", () => {

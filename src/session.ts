@@ -46,6 +46,8 @@ export interface SessionOptions {
 	showKeys?: boolean;
 	/** The program gets a row more than the screen, and its last one shows on the status line, if there is one. */
 	statusRow?: boolean;
+	/** F11, F12 and F13 reach the program as function keys rather than Escape, BS and LF. */
+	functionKeys?: boolean;
 	/** Screen saver after a spell without keys; "auto" is "progress" on a DEC terminal and "off" on emulators. */
 	screensaver?: SaverMode | "auto";
 	screensaverMinutes?: number;
@@ -211,6 +213,7 @@ export class Session {
 			supplemental: () => this.io.caps.supplemental,
 			unicode: () => this.io.caps.unicode,
 			metaKey: options.metaKey === "none" ? undefined : (options.metaKey ?? "f14"),
+			functionKeys: options.functionKeys ?? false,
 			metaChanged: () => this.changed(),
 			escapeTimeoutMs: Math.max(
 				caps.unicode ? EMULATOR_ESCAPE_TIMEOUT_MS : DEC_ESCAPE_TIMEOUT_MS,
