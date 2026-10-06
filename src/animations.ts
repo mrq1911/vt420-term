@@ -162,8 +162,9 @@ function prepare(bytes: Buffer): string {
 /** A VT100 as the animations expect it, after whatever the last one left. */
 const RESET = `${CSI}!p${CSI}?7h${CSI}?4l${CSI}?5l${CSI}?6l${CSI}r\x1b(B\x1b)0\x0f${CSI}m${CSI}?25h${CSI}H${CSI}2J`;
 
+/** The caption on the host-writable status line, which it makes the status line again if a reset undid that. */
 function status(text: string): string {
-	return `${CSI}1$}\r${CSI}2K${text.slice(0, 80)}${CSI}0$}`;
+	return `${CSI}2$~${CSI}1$}\r${CSI}2K${text.slice(0, 80)}${CSI}0$}`;
 }
 
 const centred = (text: string, width: number): number => Math.max(1, Math.floor((width - text.length) / 2) + 1);
@@ -298,6 +299,8 @@ async function play(
 			await tty.send(caption(baud));
 		}
 		await tty.send(piece);
+		// a hard reset (some start with one) gives the status line back to Set-Up, without the caption
+		if (piece.includes("\x1bc")) await tty.send(caption(baud));
 		sent += piece.length;
 		// as fast as the line it was made for, and no faster
 		const due = start + (sent * 10_000) / baud;

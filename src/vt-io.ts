@@ -12,6 +12,10 @@ export interface Answer {
 /** Split bytes into pieces no control sequence or string is cut across. */
 export function atoms(bytes: string): string[] {
 	const out: string[] = [];
+	const code = (at: number): number => bytes.charCodeAt(at);
+	/** C0 controls act inside a sequence without ending it; ESC, CAN and SUB end it. */
+	const inside = (at: number): boolean =>
+		at < bytes.length && code(at) < 0x20 && ![0x1b, 0x18, 0x1a].includes(code(at));
 	let i = 0;
 	while (i < bytes.length) {
 		const start = i;
@@ -23,21 +27,34 @@ export function atoms(bytes: string): string[] {
 			continue;
 		}
 		i++;
+		while (inside(i)) i++;
 		const next = bytes[i];
-		if (next === "[") {
+		if (next === undefined || next === "\x1b" || code(i) === 0x18 || code(i) === 0x1a) {
+			// an ESC that the next one, or CAN or SUB, cancels: alone, as the terminal leaves it
+		} else if (next === "[") {
 			i++;
-			while (i < bytes.length && !(bytes.charCodeAt(i) >= 0x40 && bytes.charCodeAt(i) <= 0x7e)) i++;
-			i++;
+			while (
+				i < bytes.length &&
+				bytes[i] !== "\x1b" &&
+				!(code(i) >= 0x40 && code(i) <= 0x7e) &&
+				code(i) !== 0x18 &&
+				code(i) !== 0x1a
+			) {
+				i++;
+			}
+			if (i < bytes.length && code(i) >= 0x40 && code(i) <= 0x7e) i++;
 		} else if (next === "N" || next === "O") {
 			// a single shift belongs with the character it shifts
-			i += 2;
+			i++;
+			while (inside(i)) i++;
+			if (i < bytes.length && bytes[i] !== "\x1b") i++;
 		} else if (next === "P" || next === "]" || next === "^" || next === "_" || next === "X") {
 			// a string, to ST
 			while (i < bytes.length && !(bytes[i] === "\x1b" && bytes[i + 1] === "\\")) i++;
 			i += 2;
 		} else {
-			while (i < bytes.length && bytes.charCodeAt(i) >= 0x20 && bytes.charCodeAt(i) <= 0x2f) i++;
-			i++;
+			while (i < bytes.length && code(i) >= 0x20 && code(i) <= 0x2f) i++;
+			if (i < bytes.length && bytes[i] !== "\x1b") i++;
 		}
 		out.push(bytes.slice(start, Math.min(i, bytes.length)));
 	}
