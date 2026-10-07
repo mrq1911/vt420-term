@@ -4,12 +4,12 @@
 
 import { tmpdir } from "node:os";
 import { fileURLToPath } from "node:url";
+import type { SupplementalSet } from "@mrq/vt420/charset.js";
+import { Vt420Terminal, type Vt420TerminalOptions } from "@mrq/vt420/terminal.js";
 import { spawn } from "node-pty";
 import { RelayedNative } from "./native-client.ts";
 import { isSaverMode, type SaverMode } from "./saver.ts";
 import { type NativeChild, Session } from "./session.ts";
-import type { SupplementalSet } from "./vt420/charset.ts";
-import { Vt420Terminal, type Vt420TerminalOptions } from "./vt420/terminal.ts";
 
 const VERSION = "0.1.0";
 

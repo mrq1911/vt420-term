@@ -5,8 +5,8 @@
  * does not reach the program.
  */
 
-import { BLANK, LINE_SINGLE, type Line } from "./vt420/cells.ts";
-import type { Frame } from "./vt420/renderer.ts";
+import { BLANK, LINE_SINGLE, type Line } from "@mrq/vt420/cells.js";
+import type { Frame } from "@mrq/vt420/renderer.js";
 
 export type SaverMode = "off" | "blank" | "progress";
 

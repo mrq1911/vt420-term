@@ -4,6 +4,16 @@
  * keeps its two columns, and decorations from the Private Use Area (Powerline and Nerd Font symbols) become spaces.
  */
 
+import {
+	ATTR_BLINK,
+	ATTR_BOLD,
+	ATTR_REVERSE,
+	ATTR_UNDERLINE,
+	BLANK,
+	LINE_SINGLE,
+	type Line,
+} from "@mrq/vt420/cells.js";
+import type { Charset } from "@mrq/vt420/charset.js";
 import type { IBufferCell, Terminal } from "@xterm/headless";
 import {
 	DEFAULT_BACKGROUND,
@@ -14,8 +24,6 @@ import {
 	type Rgb,
 	unpackRgb,
 } from "./palette.ts";
-import { ATTR_BLINK, ATTR_BOLD, ATTR_REVERSE, ATTR_UNDERLINE, BLANK, LINE_SINGLE, type Line } from "./vt420/cells.ts";
-import type { Charset } from "./vt420/charset.ts";
 
 const SPACE: readonly number[] = [BLANK];
 

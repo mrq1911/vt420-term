@@ -1,7 +1,7 @@
 import { execFileSync } from "node:child_process";
+import { Vt420Emulator } from "@mrq/vt420-emu/emulator.js";
 import { spawn } from "node-pty";
 import { describe, expect, it } from "vitest";
-import { Vt420Emulator } from "./emulator.ts";
 import { settle } from "./fixtures.ts";
 import { vt420Violations } from "./safety.ts";
 

@@ -6,16 +6,16 @@
  * ignores DSR) so the terminal is never more than a frame behind, whatever it is still drawing.
  */
 
+import { ATTR_BOLD, BLANK } from "@mrq/vt420/cells.js";
+import { Charset } from "@mrq/vt420/charset.js";
+import { type Frame, type Renderer, rendererFor } from "@mrq/vt420/renderer.js";
+import { DEC_ESCAPE_TIMEOUT_MS, EMULATOR_ESCAPE_TIMEOUT_MS, type TerminalCapabilities } from "@mrq/vt420/terminal.js";
+import { spaces, truncateCells } from "@mrq/vt420/text.js";
 import { Unicode11Addon } from "@xterm/addon-unicode11";
 import xterm from "@xterm/headless";
 import { functionKeyBytes, KeyTranslator } from "./keys.ts";
 import { activity, SAVER_MINUTES, SAVER_MOVE_MS, type SaverMode, saverFrame, saverPlace } from "./saver.ts";
 import { ScreenMapper } from "./screen.ts";
-import { ATTR_BOLD, BLANK } from "./vt420/cells.ts";
-import { Charset } from "./vt420/charset.ts";
-import { type Frame, type Renderer, rendererFor } from "./vt420/renderer.ts";
-import { DEC_ESCAPE_TIMEOUT_MS, EMULATOR_ESCAPE_TIMEOUT_MS, type TerminalCapabilities } from "./vt420/terminal.ts";
-import { spaces, truncateCells } from "./vt420/text.ts";
 
 /** The terminal side: a VT420, or anything that plays one. */
 export interface SessionTerminal {

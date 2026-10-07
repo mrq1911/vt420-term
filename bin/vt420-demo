@@ -1,6 +1,0 @@
-#!/usr/bin/env bash
-# vt420-demo from this checkout: a tour of the VT420's features, on the VT420 it runs on
-set -euo pipefail
-ROOT="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)"
-node="$(cat "$ROOT/node_modules/.vt420-term-node" 2>/dev/null || echo node)"
-exec "$node" "$ROOT/src/demo.ts" "$@"

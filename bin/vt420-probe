@@ -1,6 +1,0 @@
-#!/usr/bin/env bash
-# vt420-probe from this checkout: run it on a VT420 to record how it answers; see src/probe.ts
-set -euo pipefail
-ROOT="$(cd "$(dirname "$(readlink -f "${BASH_SOURCE[0]}")")/.." && pwd)"
-node="$(cat "$ROOT/node_modules/.vt420-term-node" 2>/dev/null || echo node)"
-exec "$node" "$ROOT/src/probe.ts" "$@"

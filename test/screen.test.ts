@@ -1,11 +1,11 @@
+import { ATTR_BLINK, ATTR_BOLD, ATTR_MASK, ATTR_REVERSE, ATTR_UNDERLINE, type Line } from "@mrq/vt420/cells.js";
+import { Charset } from "@mrq/vt420/charset.js";
+import { cellsText } from "@mrq/vt420-emu/emulator.js";
 import { Unicode11Addon } from "@xterm/addon-unicode11";
 import xterm from "@xterm/headless";
 import { describe, expect, it } from "vitest";
 import { isAccent, isLight, paletteRgb } from "../src/palette.ts";
 import { ScreenMapper } from "../src/screen.ts";
-import { ATTR_BLINK, ATTR_BOLD, ATTR_MASK, ATTR_REVERSE, ATTR_UNDERLINE, type Line } from "../src/vt420/cells.ts";
-import { Charset } from "../src/vt420/charset.ts";
-import { cellsText } from "./emulator.ts";
 
 const charset = new Charset({ technical: true, supplemental: "dec", eightBit: false });
 

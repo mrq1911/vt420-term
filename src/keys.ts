@@ -11,7 +11,7 @@
  */
 
 import { StringDecoder } from "node:string_decoder";
-import { decodeGR, type SupplementalSet } from "./vt420/charset.ts";
+import { decodeGR, type SupplementalSet } from "@mrq/vt420/charset.js";
 
 export interface KeyModes {
 	applicationCursorKeys: boolean;

@@ -1,3 +1,0 @@
-#!/usr/bin/env bash
-# opens Set-Up in vt420, the VT420 in a browser window: an APC string, which a real VT420 ignores
-printf '\033_vt420:setup\033\\'

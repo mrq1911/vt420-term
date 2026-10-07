@@ -1,8 +1,8 @@
-import { type LineOptions, SerialLine } from "../src/emu/line.ts";
+import { charsetDesignations } from "@mrq/vt420/sequences.js";
+import type { TerminalCapabilities } from "@mrq/vt420/terminal.js";
+import { type EmulatorOptions, Vt420Emulator } from "@mrq/vt420-emu/emulator.js";
+import { type LineOptions, SerialLine } from "@mrq/vt420-emu/line.js";
 import type { NativeChild, SessionChild, SessionTerminal } from "../src/session.ts";
-import { charsetDesignations } from "../src/vt420/sequences.ts";
-import type { TerminalCapabilities } from "../src/vt420/terminal.ts";
-import { type EmulatorOptions, Vt420Emulator } from "./emulator.ts";
 
 export const VT420: TerminalCapabilities = {
 	rows: 24,
