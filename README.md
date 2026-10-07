@@ -43,6 +43,8 @@ program's row while that row says NORMAL, so pi in a zellij pane has the status 
 
 ## vt420: a VT420 in a browser window
 
+![vt420-demo in vt420, amber phosphor](media/vt420-demo.webp)
+
 `vt420` is the terminal itself, for when the real one is not at hand: your shell, or `vt420 -- program`, runs in a
 pseudo-terminal with `TERM=vt420`, and a local page is the VT420 it talks to. It does what the programmer reference
 (EK-VT420-RM) describes for one session:
@@ -135,7 +137,7 @@ key position reports and display controls mode.
 
 ## Demo and animations
 
-`vt420-demo` shows a VT420 what it can do, on the VT420 it runs on, the real one or vt420: double-size lines and
+`vt420-demo` (recorded above) shows a VT420 what it can do, on the VT420 it runs on, the real one or vt420: double-size lines and
 attributes, line drawing and DEC Technical, rectangles, smooth scroll inside margins, two windows with left and right
 margins, a marquee and columns going in and out, a soft font, six pages drawn out of sight and flipped through, 132
 columns and 48 lines, the alignment pattern and selective erase, with the status line saying where it is. `n` goes
