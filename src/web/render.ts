@@ -33,13 +33,13 @@ const PHOSPHORS: Readonly<Record<Phosphor, [number, number, number]>> = {
 const NORMAL = 0.72;
 
 export type Weight = "thin" | "medium" | "heavy";
-export type Persistence = "off" | "short" | "long";
+export type Persistence = "off" | "short" | "medium" | "long";
 
 /** How far, in dots, each weight spreads a lit dot to the right, as a beam driven harder does. */
 const STRETCH: Readonly<Record<Weight, number>> = { thin: 0, medium: 0.25, heavy: 0.5 };
 
 /** How long, in milliseconds, a lit dot takes to fade to a third (the phosphor's persistence). */
-const PERSISTENCE: Readonly<Record<Persistence, number>> = { off: 0, short: 30, long: 120 };
+const PERSISTENCE: Readonly<Record<Persistence, number>> = { off: 0, short: 30, medium: 60, long: 120 };
 
 /** The two thumbwheels under the screen, each from 0 to 1. */
 export interface Knobs {
@@ -90,7 +90,7 @@ export class Renderer {
 	private phosphor: [number, number, number] = PHOSPHORS.white;
 	private knobs: Knobs = { brightness: 0.35, contrast: 0.7 };
 	private weight: Weight = "thin";
-	private persistence: Persistence = "short";
+	private persistence: Persistence = "medium";
 	private lastComposite = 0;
 	private settleUntil = 0;
 	private drawn: RowKey[] = [];

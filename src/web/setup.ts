@@ -26,7 +26,7 @@ export interface DisplaySettings {
 	/** How heavy the characters are drawn. */
 	weight: "thin" | "medium" | "heavy";
 	/** How long the phosphor glows once a dot goes dark. */
-	persistence: "off" | "short" | "long";
+	persistence: "off" | "short" | "medium" | "long";
 }
 
 export const DEFAULT_DISPLAY: DisplaySettings = {
@@ -40,7 +40,7 @@ export const DEFAULT_DISPLAY: DisplaySettings = {
 	utf8: false,
 	baud: 0,
 	weight: "thin",
-	persistence: "short",
+	persistence: "medium",
 };
 
 interface Item {
@@ -376,6 +376,7 @@ export class SetupScreen {
 						[
 							["off", "Off"],
 							["short", "Short"],
+							["medium", "Medium"],
 							["long", "Long"],
 						],
 						() => display.persistence,
