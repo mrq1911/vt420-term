@@ -38,8 +38,16 @@ export type Persistence = "off" | "short" | "medium" | "long";
 /** How far, in dots, each weight spreads a lit dot to the right, as a beam driven harder does. */
 const STRETCH: Readonly<Record<Weight, number>> = { thin: 0, medium: 0.25, heavy: 0.5 };
 
-/** How long, in milliseconds, a lit dot takes to fade to a third (the phosphor's persistence). */
-const PERSISTENCE: Readonly<Record<Persistence, number>> = { off: 0, short: 30, medium: 60, long: 120 };
+/**
+ * How a dot fades once it goes dark, as a phosphor does: most of its light at once, in `fast` milliseconds to a third,
+ * and a `tail` of it lingering, in `slow` milliseconds to a third.
+ */
+const PERSISTENCE: Readonly<Record<Persistence, { fast: number; slow: number; tail: number }>> = {
+	off: { fast: 0, slow: 0, tail: 0 },
+	short: { fast: 10, slow: 200, tail: 0.08 },
+	medium: { fast: 15, slow: 400, tail: 0.12 },
+	long: { fast: 25, slow: 800, tail: 0.18 },
+};
 
 /** The two thumbwheels under the screen, each from 0 to 1. */
 export interface Knobs {
@@ -79,12 +87,15 @@ export interface FrameState {
 type RowKey = string;
 
 export class Renderer {
-	/** The tube: what was drawn, fading as a phosphor does, under what is drawn now. */
+	/** The tube: what is drawn now, over the glow of what was. */
 	readonly canvas: HTMLCanvasElement;
 	private readonly screen: CanvasRenderingContext2D;
 	/** The picture as the terminal draws it now, row by row as rows change. */
 	private readonly frame: HTMLCanvasElement;
 	private readonly ctx: CanvasRenderingContext2D;
+	/** The light of dots gone dark, the part that goes at once and the part that lingers. */
+	private readonly fast: CanvasRenderingContext2D;
+	private readonly slow: CanvasRenderingContext2D;
 	/** The terminal shown: the one the program writes to, or Set-Up's. */
 	term: Vt420;
 	private phosphor: [number, number, number] = PHOSPHORS.white;
@@ -109,6 +120,8 @@ export class Renderer {
 		this.screen = canvas.getContext("2d", { alpha: false })!;
 		this.frame = document.createElement("canvas");
 		this.ctx = this.frame.getContext("2d", { alpha: false })!;
+		this.fast = document.createElement("canvas").getContext("2d", { alpha: false })!;
+		this.slow = document.createElement("canvas").getContext("2d", { alpha: false })!;
 		this.term = term;
 	}
 
@@ -140,8 +153,10 @@ export class Renderer {
 		this.height = Math.max(1, Math.round(box.height * ratio));
 		this.canvas.width = this.width;
 		this.canvas.height = this.height;
-		this.frame.width = this.width;
-		this.frame.height = this.height;
+		for (const layer of [this.frame, this.fast.canvas, this.slow.canvas]) {
+			layer.width = this.width;
+			layer.height = this.height;
+		}
 		this.invalidate();
 	}
 
@@ -228,28 +243,41 @@ export class Renderer {
 	}
 
 	/**
-	 * Onto the tube: what was there fades toward the black of the tube and what is lit now lights it, the brighter of
-	 * the two kept, so a dot that goes dark glows a moment longer. Nothing to do once all has faded.
+	 * Onto the tube: what is lit now, and the light of dots gone dark, which falls fast and then lingers faintly, as
+	 * a phosphor's does. Each part fades toward the black of the tube at its own pace, the brighter of it and what is
+	 * lit now kept; the tube shows the fast part and over it the lingering one's share. Nothing to do once all has faded.
 	 */
 	private composite(now: number, changed: boolean): void {
-		const tau = PERSISTENCE[this.persistence];
+		const decay = PERSISTENCE[this.persistence];
 		const elapsed = Math.min(100, Math.max(0, now - this.lastComposite));
 		this.lastComposite = now;
-		if (changed) this.settleUntil = now + tau * 7;
+		if (changed) this.settleUntil = now + decay.slow * 6;
 		else if (now > this.settleUntil) return;
 		const screen = this.screen;
-		if (tau === 0) {
-			screen.globalCompositeOperation = "copy";
+		screen.globalCompositeOperation = "copy";
+		if (decay.slow === 0) {
 			screen.drawImage(this.frame, 0, 0);
 			screen.globalCompositeOperation = "source-over";
 			return;
 		}
-		screen.globalAlpha = 1 - Math.exp(-elapsed / tau);
-		screen.fillStyle = this.background(this.term.screenReverse);
-		screen.fillRect(0, 0, this.width, this.height);
-		screen.globalAlpha = 1;
+		const black = this.background(this.term.screenReverse);
+		for (const [layer, tau] of [
+			[this.fast, decay.fast],
+			[this.slow, decay.slow],
+		] as const) {
+			layer.globalAlpha = 1 - Math.exp(-elapsed / tau);
+			layer.fillStyle = black;
+			layer.fillRect(0, 0, this.width, this.height);
+			layer.globalAlpha = 1;
+			layer.globalCompositeOperation = "lighten";
+			layer.drawImage(this.frame, 0, 0);
+			layer.globalCompositeOperation = "source-over";
+		}
+		screen.drawImage(this.fast.canvas, 0, 0);
 		screen.globalCompositeOperation = "lighten";
-		screen.drawImage(this.frame, 0, 0);
+		screen.globalAlpha = decay.tail;
+		screen.drawImage(this.slow.canvas, 0, 0);
+		screen.globalAlpha = 1;
 		screen.globalCompositeOperation = "source-over";
 	}
 
