@@ -7,6 +7,9 @@
  * It never sends more than a couple of hundred characters without waiting for an answer, so the terminal's input
  * buffer holds them with flow control or without, and it puts back the modes it changes. It leaves out DA3, the
  * unit's serial number, and the answerback message.
+ *
+ * With --pipe it talks over standard input and output that are no tty, as to the VT420's firmware running in an
+ * emulator of its hardware (see scripts/firmware-probe.ts), and leaves out the timings, which only a real one has.
  */
 
 import { execFileSync } from "node:child_process";
@@ -91,6 +94,13 @@ async function sync(bytes: string): Promise<number> {
 	}
 }
 
+/** Until the terminal answers, as one still starting up does once it is up; the answers asking for it brought go. */
+async function ready(): Promise<void> {
+	for (let tries = 0; tries < 30 && !Number.isFinite(await sync("")); tries++);
+	await new Promise((resolve) => setTimeout(resolve, 500));
+	incoming.length = 0;
+}
+
 function median(values: number[]): number {
 	const sorted = values.filter(Number.isFinite).sort((a, b) => a - b);
 	return sorted[Math.floor(sorted.length / 2)] ?? Number.NaN;
@@ -109,14 +119,15 @@ function lineSpeed(): number | undefined {
 }
 
 async function main(): Promise<void> {
-	const path = process.argv[2] ?? "vt420-probe.json";
-	if (!process.stdin.isTTY) {
+	const pipe = process.argv.includes("--pipe");
+	const path = process.argv.slice(2).find((arg) => !arg.startsWith("--")) ?? "vt420-probe.json";
+	if (!pipe && !process.stdin.isTTY) {
 		process.stderr.write("vt420-probe: run it on the terminal, with its tty on standard input\n");
 		process.exit(2);
 	}
-	const baud = lineSpeed();
+	const baud = pipe ? undefined : lineSpeed();
 	let aborted = false;
-	process.stdin.setRawMode(true);
+	if (!pipe) process.stdin.setRawMode(true);
 	process.stdin.on("data", (chunk: Buffer) => {
 		const at = performance.now();
 		for (const byte of chunk) {
@@ -127,6 +138,7 @@ async function main(): Promise<void> {
 		waiting?.();
 	});
 	const result: Record<string, unknown> = { version: VERSION, date: new Date().toISOString().slice(0, 10), baud };
+	await ready();
 
 	const modes: Record<string, string | null> = {};
 	for (const number of MODES) modes[`?${number}`] = await ask(`\x1b[?${number}$p`);
@@ -151,7 +163,7 @@ async function main(): Promise<void> {
 	}
 	result.cases = cases;
 
-	if (!aborted) result.timing = await timing(modes);
+	if (!aborted && !pipe) result.timing = await timing(modes);
 	await restore(modes, settings);
 	writeFileSync(path, `${JSON.stringify(result, null, "\t")}\n`);
 	write(`vt420-probe: ${cases.length} cases${aborted ? " (stopped)" : ""}, written to ${path}\r\n`);

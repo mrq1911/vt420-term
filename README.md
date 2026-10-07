@@ -124,6 +124,12 @@ them to a file (it leaves out DA3, the unit's serial number, and the answerback)
 differs. Run it from a login on the terminal itself, with nothing on the screen to keep:
 `vt420-probe ~/vt420-probe.json`.
 
+The same probe also runs against the VT420's own firmware (V1.4, as on the terminal recorded) in
+[Blaze](https://github.com/mmastrac/blaze), which emulates the terminal's hardware: `scripts/firmware-probe.ts`
+keeps its answers as `test/fixtures/vt420-firmware.json`, checked the same way. It answers 70 of the 72 cases as the
+terminal did (the other two depend on its tab stops), so a new case can be asked of the firmware in seconds, with no
+trip to the terminal; what it takes for settings differ, as the conformance test allows for.
+
 The characters are the VT420's own, dot for dot: its character generator as firmware V1.4 loads it into video
 memory, read from the firmware running in [Blaze](https://github.com/mmastrac/blaze), an emulator of the terminal's
 hardware, with a font for each height of row (16 scan lines at 24 lines, 10 at 36, 8 at 48) and each width (10 dots

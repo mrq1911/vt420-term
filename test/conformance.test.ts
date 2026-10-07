@@ -3,8 +3,9 @@ import { describe, expect, it } from "vitest";
 import { FACTORY_SETUP, Vt420, type Vt420Setup } from "../src/emu/vt420.ts";
 import { CASES, START } from "../src/probe-cases.ts";
 
-/** What vt420-probe recorded on a real VT420. */
+/** What vt420-probe recorded on a VT420, or on its firmware running in Blaze (scripts/firmware-probe.ts). */
 interface Recording {
+	firmware?: string;
 	baud?: number;
 	modes: Record<string, string | null>;
 	settings: Record<string, string | null>;
@@ -13,8 +14,16 @@ interface Recording {
 	timing?: Record<string, unknown>;
 }
 
-const FIXTURE = new URL("./fixtures/vt420-probe.json", import.meta.url);
-const recording: Recording | undefined = existsSync(FIXTURE) ? JSON.parse(readFileSync(FIXTURE, "utf8")) : undefined;
+function load(name: string): Recording | undefined {
+	const fixture = new URL(`./fixtures/${name}`, import.meta.url);
+	return existsSync(fixture) ? JSON.parse(readFileSync(fixture, "utf8")) : undefined;
+}
+
+/** The terminal itself, set up as its owner has it, and its firmware with its settings memory all zeros. */
+const RECORDINGS: Array<[string, Recording | undefined]> = [
+	["a VT420", load("vt420-probe.json")],
+	["the VT420's firmware", load("vt420-firmware.json")],
+];
 
 /** Set-Up as the recording shows it, for what a soft reset leaves alone. */
 function setupOf(recording: Recording): Partial<Vt420Setup> {
@@ -43,7 +52,9 @@ function setupOf(recording: Recording): Partial<Vt420Setup> {
 
 /** A VT420 set up as the recorded one, with its tab stops and attribute extent, which a soft reset keeps. */
 function terminalOf(recording: Recording, onResponse: (bytes: string) => void): Vt420 {
-	const term = new Vt420({ setup: setupOf(recording), onResponse });
+	// Blaze has an LK201 plugged in
+	const keyboard = /;0n$/.test(recording.reports["\x1b[?26n"] ?? "") ? "LK201" : "LK401";
+	const term = new Vt420({ setup: setupOf(recording), keyboard, onResponse });
 	const tabs = /^\x1bP2\$u(.*)\x1b\\$/.exec(recording.reports["\x1b[2$w"] ?? "")?.[1];
 	if (tabs !== undefined) term.feed(`\x1bP2$t${tabs}\x1b\\`);
 	const extent = /^\x1bP[01]\$r(\d)\*x/.exec(recording.settings["*x"] ?? "")?.[1];
@@ -54,8 +65,8 @@ function terminalOf(recording: Recording, onResponse: (bytes: string) => void): 
 /** Reports that tell what was on the screen and the line before the probe, not how the terminal works. */
 const HISTORY = new Set(["\x1b[1$u", "\x1b[1$w", "\x1b[?75n"]);
 
-describe.skipIf(!recording)("vt420 against a recorded VT420", () => {
-	it("does what the VT420 did, case by case", () => {
+describe.each(RECORDINGS)("vt420 against %s", (_, recording) => {
+	it.skipIf(!recording)("does what the VT420 did, case by case", () => {
 		const answers: string[] = [];
 		const term = terminalOf(recording!, (bytes) => answers.push(bytes));
 		const differences: string[] = [];
@@ -79,7 +90,7 @@ describe.skipIf(!recording)("vt420 against a recorded VT420", () => {
 		expect(differences).toEqual([]);
 	});
 
-	it("answers the reports as the VT420 did", () => {
+	it.skipIf(!recording)("answers the reports as the VT420 did", () => {
 		const answers: string[] = [];
 		const term = terminalOf(recording!, (bytes) => answers.push(bytes));
 		const differences: string[] = [];

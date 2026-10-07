@@ -96,6 +96,16 @@ export const CASES: readonly ProbeCase[] = [
 		ask: [check(1, 80), check(2, 1), check(2, 6), check(1, 69)],
 	},
 	{
+		name: "reverse attributes over a stream of written positions",
+		send: `\x1b[1*x\x1b[1;70H${"x".repeat(11)}\x1b[2;1H${"x".repeat(6)}\x1b[1;70;2;5;5$t`,
+		ask: [check(1, 69), check(1, 70), check(1, 80), check(2, 1), check(2, 5), check(2, 6)],
+	},
+	{
+		name: "reverse attributes over a stream, left before right",
+		send: `\x1b[1*x\x1b[1;1H${"x".repeat(80)}${"x".repeat(6)}\x1b[1;3;2;5;5$t`,
+		ask: [check(1, 2), check(1, 3), check(1, 80), check(2, 5), check(2, 6), check(2, 1)],
+	},
+	{
 		name: "change attributes in a rectangle",
 		send: "\x1b[2*x\x1b[1;70;2;75;1$r",
 		ask: [check(1, 69), check(1, 72), check(2, 72)],

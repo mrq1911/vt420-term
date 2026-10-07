@@ -193,10 +193,15 @@ describe("rectangles", () => {
 
 	it("changes the stream of positions between the corners, not the rectangle, by default", () => {
 		const { term } = terminal({ setup: { columns: 80 } });
-		term.feed("\x1b[1;70;2;5;5$r");
+		term.feed("\x1b[1;3;2;5;5$r");
+		expect(term.attrsAt(0, 1)).toBe(0);
 		expect(term.attrsAt(0, 79)).toBe(ATTR_BLINK);
-		expect(term.attrsAt(1, 0)).toBe(ATTR_BLINK);
+		expect(term.attrsAt(1, 4)).toBe(ATTR_BLINK);
 		expect(term.attrsAt(1, 5)).toBe(0);
+		// one that ends left of where it starts changes nothing, as the firmware has it
+		term.feed("\x1b[3;70;4;5;5$r");
+		expect(term.attrsAt(2, 79)).toBe(0);
+		expect(term.attrsAt(3, 0)).toBe(0);
 	});
 });
 
