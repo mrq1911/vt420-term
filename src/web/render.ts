@@ -44,9 +44,9 @@ const STRETCH: Readonly<Record<Weight, number>> = { thin: 0, medium: 0.25, heavy
  */
 const PERSISTENCE: Readonly<Record<Persistence, { fast: number; slow: number; tail: number }>> = {
 	off: { fast: 0, slow: 0, tail: 0 },
-	short: { fast: 10, slow: 200, tail: 0.08 },
-	medium: { fast: 15, slow: 400, tail: 0.12 },
-	long: { fast: 25, slow: 800, tail: 0.18 },
+	short: { fast: 10, slow: 400, tail: 0.08 },
+	medium: { fast: 15, slow: 800, tail: 0.12 },
+	long: { fast: 25, slow: 1600, tail: 0.18 },
 };
 
 /** The two thumbwheels under the screen, each from 0 to 1. */
